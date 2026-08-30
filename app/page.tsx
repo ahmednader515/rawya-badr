@@ -65,7 +65,7 @@ export default async function HomePage() {
     typeof homepageSettings.heroSliderIntervalMs === "number"
       ? homepageSettings.heroSliderIntervalMs
       : 5000;
-  const heroTextAlignClass = locale === "en" ? "text-left" : "text-right";
+  const heroTextAlignClass = locale === "en" ? "text-center lg:text-left" : "text-center lg:text-right";
 
   if (heroTemplate === "image_slider" && heroSliderSlides[0]?.src) {
     preload(heroSliderSlides[0].src, { as: "image" });
