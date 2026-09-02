@@ -590,3 +590,23 @@ html:not(.light):not(.dark) .home-teachers-hero-blend {
 .plyr:fullscreen.plyr--video {
   overflow: hidden;
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #certificate-print-area,
+  #certificate-print-area * {
+    visibility: visible;
+  }
+
+  #certificate-print-area {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    max-width: 100%;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

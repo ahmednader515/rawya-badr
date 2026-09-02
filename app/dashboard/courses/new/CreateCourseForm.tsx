@@ -11,7 +11,7 @@ import { mapDraftToFormState } from "@/lib/course-draft-map";
 import { buildCourseAutosavePayload } from "@/lib/course-form-payload";
 
 type CategoryOption = { id: string; name: string; nameAr?: string | null };
-type LessonRow = { title: string; videoUrl: string; content: string; pdfUrl: string; acceptsHomework: boolean; homeworkImageUrl: string };
+type LessonRow = { title: string; videoUrl: string; content: string; pdfUrl: string };
 type QuestionOptionRow = { text: string; isCorrect: boolean };
 type QuestionRow = { type: "MULTIPLE_CHOICE" | "TRUE_FALSE"; questionText: string; questionImageUrl: string; options: QuestionOptionRow[] };
 type QuizRow = { title: string; timeLimitMinutes: string; questions: QuestionRow[] };
@@ -26,7 +26,7 @@ function emptyQuestion(): QuestionRow {
 }
 
 function emptyLesson(): LessonRow {
-  return { title: "", videoUrl: "", content: "", pdfUrl: "", acceptsHomework: false, homeworkImageUrl: "" };
+  return { title: "", videoUrl: "", content: "", pdfUrl: "" };
 }
 
 export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean }) {
@@ -712,23 +712,6 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
                 rows={2}
                 className="w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
               />
-              <label className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  checked={lesson.acceptsHomework}
-                  onChange={(e) => updateLesson(i, "acceptsHomework", e.target.checked)}
-                  className="rounded border-[var(--color-border)]"
-                />
-                <span className="text-sm text-[var(--color-foreground)]">{t(`${Cf}.homeworkCheckbox`)}</span>
-              </label>
-              {lesson.acceptsHomework ? (
-                <ImageAttachField
-                  value={lesson.homeworkImageUrl}
-                  onChange={(url) => updateLesson(i, "homeworkImageUrl", url)}
-                  label={t(`${Cf}.homeworkImageLabel`)}
-                  help={t(`${Cf}.homeworkImageHelp`)}
-                />
-              ) : null}
             </div>
           </div>
         ))}

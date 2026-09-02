@@ -5,18 +5,14 @@ import {
   getAllowedLessonIdsForUserCourse,
   getEnrollment,
   getLessonById,
-  getLessonRatingSummary,
-  getLessonsByCourseId,
   hasFullCourseAccessAsStudent,
-  upsertLessonRating,
-  issueCourseCertificateIfEligible,
   isLessonWatchComplete,
+  markLessonWatchComplete,
 } from "@/lib/db";
 import { getUnlockedLessonIdsForStudent } from "@/lib/lesson-sequence";
-import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 
 async function canAccessLesson(userId: string, role: string, lessonId: string, courseId: string): Promise<boolean> {
-  if (role === "ADMIN" || role === "ASSISTANT_ADMIN") return true;
+  if (role === "ADMIN" || role === "ASSISTANT_ADMIN" || role === "TEACHER") return true;
   if (await getEnrollment(userId, courseId)) return true;
   if (role === "STUDENT") {
     if (await hasFullCourseAccessAsStudent(userId, courseId)) return true;
@@ -43,17 +39,16 @@ export async function GET(
     const allowed = await canAccessLesson(session.user.id, session.user.role, lesson.id, lesson.course_id);
     if (!allowed) return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
 
-    const summary = await getLessonRatingSummary(lesson.id, session.user.id);
-    if (!summary) return NextResponse.json({ error: "تعذر تحميل التقييم" }, { status: 500 });
-    return NextResponse.json({ summary });
+    const completed = await isLessonWatchComplete(session.user.id, lesson.id);
+    return NextResponse.json({ completed });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "تعذر تحميل التقييم";
+    const message = err instanceof Error ? err.message : "تعذر التحقق من إكمال الحصة";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ lessonId: string }> },
 ) {
   try {
@@ -69,10 +64,11 @@ export async function POST(
     const allowed = await canAccessLesson(session.user.id, session.user.role, lesson.id, lesson.course_id);
     if (!allowed) return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
 
-    const courseLessons = await getLessonsByCourseId(lesson.course_id);
     const partial = await getAllowedLessonIdsForUserCourse(session.user.id, lesson.course_id);
     const enrollment = await getEnrollment(session.user.id, lesson.course_id);
     const partialOnly = !enrollment && partial.length > 0;
+    const { getLessonsByCourseId } = await import("@/lib/db");
+    const courseLessons = await getLessonsByCourseId(lesson.course_id);
     const unlocked = await getUnlockedLessonIdsForStudent({
       userId: session.user.id,
       role: session.user.role,
@@ -81,46 +77,18 @@ export async function POST(
       allowedLessonIds: partialOnly ? partial : null,
     });
     if (!unlocked.has(lesson.id)) {
-      return NextResponse.json({ error: "يجب إكمال وتقييم الحصة السابقة أولاً" }, { status: 403 });
+      return NextResponse.json({ error: "يجب إكمال الحصة السابقة أولاً" }, { status: 403 });
     }
 
-    const videoId = normalizeVdoCipherVideoId(lesson.video_url);
-    if (videoId) {
-      const watched = await isLessonWatchComplete(session.user.id, lesson.id);
-      if (!watched) {
-        return NextResponse.json({ error: "يجب مشاهدة الحصة كاملة قبل التقييم" }, { status: 403 });
-      }
-    }
-
-    let body: { rating?: unknown };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 });
-    }
-
-    const rating = Number(body.rating);
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      return NextResponse.json({ error: "التقييم يجب أن يكون من 1 إلى 5" }, { status: 400 });
-    }
-
-    await upsertLessonRating({
+    await markLessonWatchComplete({
+      user_id: session.user.id,
       lesson_id: lesson.id,
       course_id: lesson.course_id,
-      user_id: session.user.id,
-      rating: rating as 1 | 2 | 3 | 4 | 5,
     });
 
-    const certificate = await issueCourseCertificateIfEligible(session.user.id, lesson.course_id);
-
-    const summary = await getLessonRatingSummary(lesson.id, session.user.id);
-    return NextResponse.json({
-      success: true,
-      summary,
-      certificateIssued: !!certificate,
-    });
+    return NextResponse.json({ success: true, completed: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "تعذر حفظ التقييم";
+    const message = err instanceof Error ? err.message : "تعذر حفظ إكمال الحصة";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

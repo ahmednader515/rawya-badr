@@ -47,7 +47,7 @@ export default async function DashboardPage() {
           <p className="mt-2 text-sm text-[var(--color-muted)]">
             {t(
               "dashboard.page.teacherIntro",
-              "Teacher dashboard: manage your courses, enrolled students, homework, live streams, and activation codes from the menu above.",
+              "Teacher dashboard: manage your courses, enrolled students, live streams, and activation codes from the menu above.",
             )}
           </p>
         </div>
@@ -94,28 +94,6 @@ export default async function DashboardPage() {
                   "dashboard.page.studentStatisticsDesc",
                   "Quiz scores and enrollments in your courses",
                 )}
-              </p>
-            </Link>
-            <Link
-              href="/dashboard/messages"
-              className="flex min-h-[160px] flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center transition hover:border-[var(--color-primary)]/30"
-            >
-              <h3 className="font-semibold text-[var(--color-foreground)]">
-                {t("dashboard.page.contactStudentsTitle", "Contact students")}
-              </h3>
-              <p className="mt-1 text-sm text-[var(--color-muted)]">
-                {t("dashboard.page.contactStudentsDesc", "Students enrolled in your courses")}
-              </p>
-            </Link>
-            <Link
-              href="/dashboard/homework"
-              className="flex min-h-[160px] flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center transition hover:border-[var(--color-primary)]/30"
-            >
-              <h3 className="font-semibold text-[var(--color-foreground)]">
-                {t("dashboard.page.receiveHomeworkTitle", "Collect homework")}
-              </h3>
-              <p className="mt-1 text-sm text-[var(--color-muted)]">
-                {t("dashboard.page.receiveHomeworkDesc", "Submissions for your courses")}
               </p>
             </Link>
             <Link
@@ -214,23 +192,6 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6 sm:grid-cols-2">
           <ActivateCodeSection />
-          <Link
-            href="/dashboard/messages"
-            className="flex flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] text-center transition hover:border-[var(--color-primary)]/30"
-          >
-            <h2 className="text-lg font-semibold text-[var(--color-foreground)]">
-              {t("dashboard.page.inboxTitle", "Inbox")}
-            </h2>
-            <p className="mt-2 text-sm text-[var(--color-muted)]">
-              {t(
-                "dashboard.page.inboxDesc",
-                "Messages and conversations from admin or your teacher",
-              )}
-            </p>
-            <span className="mt-4 inline-flex w-fit rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-5 py-2.5 text-base font-medium text-white transition hover:bg-[var(--color-primary-hover)]">
-              {t("dashboard.page.openMessagesButton", "Open messages")}
-            </span>
-          </Link>
         </div>
 
         {subscriptionsFeature ? (
@@ -440,38 +401,6 @@ export default async function DashboardPage() {
               )}
             </p>
           </Link>
-          {(isAdmin || isAssistant) && (
-            <>
-              <Link
-                href="/dashboard/homework"
-                className="flex min-h-[200px] flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center transition hover:border-[var(--color-primary)]/30"
-              >
-                <h3 className="font-semibold text-[var(--color-foreground)]">
-                  {t("dashboard.page.receiveStudentHomeworkTitle", "Collect student homework")}
-                </h3>
-                <p className="mt-1 text-sm text-[var(--color-muted)]">
-                  {t(
-                    "dashboard.page.receiveStudentHomeworkMeta",
-                    "View homework submissions and search by student name",
-                  )}
-                </p>
-              </Link>
-              <Link
-                href="/dashboard/messages"
-                className="flex min-h-[200px] flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center transition hover:border-[var(--color-primary)]/30"
-              >
-                <h3 className="font-semibold text-[var(--color-foreground)]">
-                  {t("dashboard.page.privateMessagesWithStudentsTitle", "Private messaging with students")}
-                </h3>
-                <p className="mt-1 text-sm text-[var(--color-muted)]">
-                  {t(
-                    "dashboard.page.privateMessagesWithStudentsMeta",
-                    "Chat with a student; send messages, images, or files",
-                  )}
-                </p>
-              </Link>
-            </>
-          )}
         </div>
       </div>
 

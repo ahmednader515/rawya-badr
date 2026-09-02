@@ -7,12 +7,16 @@ import {
   getEnrollment,
   getAllowedLessonIdsForUserCourse,
   hasFullCourseAccessAsStudent,
+  getLessonRatingSummary,
+  isLessonWatchComplete,
 } from "@/lib/db";
 import { LessonWatchShell } from "@/components/LessonWatchShell";
 import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 import { CourseOutlineSidebar } from "@/components/CourseOutlineSidebar";
-import { LessonHomeworkSection } from "./LessonHomeworkSection";
 import { LessonRatingSection } from "./LessonRatingSection";
+import { LessonNavigationBar } from "@/components/LessonNavigationBar";
+import { LessonStudentFlow } from "@/components/LessonStudentFlow";
+import { getUnlockedLessonIdsForStudent, sortLessonsByOrder } from "@/lib/lesson-sequence";
 import { getLocaleFromCookie, getServerTranslator } from "@/lib/i18n/server";
 import { pickLocalizedText } from "@/lib/i18n/localized-field";
 
@@ -100,6 +104,57 @@ export default async function LessonPage({ params }: Props) {
   }
 
   const lessonObj = lesson as Record<string, unknown>;
+  const lessonIdStr = String(lessonObj.id ?? "");
+
+  const lessonsAll = (course.lessons ?? []) as Array<
+    Record<string, unknown> & { id: string; title?: string; titleAr?: string | null; order?: number }
+  >;
+
+  const partialOnly = !isStaff && !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0;
+  const unlockedLessonIds =
+    isStudent && session?.user?.id
+      ? [
+          ...(
+            await getUnlockedLessonIdsForStudent({
+              userId: session.user.id,
+              role: session.user.role,
+              courseLessons: lessonsAll.map((l) => ({
+                id: String(l.id),
+                order: typeof l.order === "number" ? l.order : null,
+              })),
+              courseId: course.id,
+              allowedLessonIds: partialOnly ? allowedLessonIds : null,
+            })
+          ),
+        ]
+      : lessonsAll.map((l) => String(l.id));
+
+  if (isStudent && session?.user?.id && !unlockedLessonIds.includes(lessonIdStr)) {
+    notFound();
+  }
+
+  const ratingSummary =
+    isStudent && session?.user?.id
+      ? await getLessonRatingSummary(lessonIdStr, session.user.id)
+      : null;
+  const hasRatedCurrent = (ratingSummary?.userRating ?? 0) >= 1;
+
+  const watchComplete =
+    isStudent && session?.user?.id
+      ? await isLessonWatchComplete(session.user.id, lessonIdStr)
+      : true;
+
+  const orderedLessonIds = sortLessonsByOrder(
+    lessonsAll.map((l) => ({
+      id: String(l.id),
+      order: typeof l.order === "number" ? l.order : null,
+    })),
+  ).map((l) => l.id);
+  const isLastLesson =
+    orderedLessonIds.length > 0 &&
+    orderedLessonIds[orderedLessonIds.length - 1] === lessonIdStr;
+
+  const certificateHref = `/courses/${courseSeg(course)}/certificate`;
   const videoUrl = (lessonObj.videoUrl ?? lessonObj.video_url) as string;
   const vdocipherVideoId = normalizeVdoCipherVideoId(videoUrl);
   const courseAr =
@@ -119,7 +174,6 @@ export default async function LessonPage({ params }: Props) {
   const lessonEn = lessonObj.title != null ? String(lessonObj.title) : null;
   const lessonTitle = pickLocalizedText(locale, lessonAr, lessonEn) || lessonEn || lessonAr || "";
 
-  const lessonsAll = (course.lessons ?? []) as Array<Record<string, unknown> & { id: string; title?: string; titleAr?: string | null }>;
   const lessons =
     !isStaff && !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0
       ? lessonsAll.filter((l) => allowedLessonIds.includes(String(l.id)))
@@ -148,77 +202,104 @@ export default async function LessonPage({ params }: Props) {
         <article className="min-w-0 lg:col-start-1 lg:row-start-1">
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">{lessonTitle}</h1>
 
-          {vdocipherVideoId ? (
-            <LessonWatchShell
-              lessonId={String(lessonObj.id)}
+          {isStudent ? (
+            <LessonStudentFlow
+              lessonId={lessonIdStr}
               videoId={vdocipherVideoId}
-            />
-          ) : null}
-
-          {(lessonObj.pdfUrl ?? lessonObj.pdf_url) ? (
-            <div className="mt-6">
-              <a
-                href={String(lessonObj.pdfUrl ?? lessonObj.pdf_url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)]"
-              >
-                📄 {t("courses.downloadPdf", "Download / View PDF")}
-              </a>
-            </div>
-          ) : null}
-
-          {lessonObj.content ? (
-            <div className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 prose-custom text-[var(--color-foreground)]">
-              {String(lessonObj.content).split("\n").map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
-            </div>
-          ) : null}
-
-          {Boolean(lessonObj.acceptsHomework ?? lessonObj.accepts_homework) && (
-            <LessonHomeworkSection
-              lessonId={String(lessonObj.id)}
-              homeworkImageUrl={
-                typeof lessonObj.homeworkImageUrl === "string"
-                  ? lessonObj.homeworkImageUrl
-                  : typeof lessonObj.homework_image_url === "string"
-                    ? lessonObj.homework_image_url
-                    : null
+              initialWatchComplete={watchComplete}
+              initialHasRated={hasRatedCurrent}
+              isLastLesson={isLastLesson}
+              certificateHref={certificateHref}
+              prevItem={prevItem}
+              nextItem={nextItem}
+              prevHref={
+                prevItem
+                  ? prevItem.type === "lesson"
+                    ? lessonHref(course, { id: prevItem.id, slug: prevItem.slug ?? undefined })
+                    : quizHref(course, prevItem.id)
+                  : null
               }
-            />
+              nextHref={
+                nextItem
+                  ? nextItem.type === "lesson"
+                    ? lessonHref(course, { id: nextItem.id, slug: nextItem.slug ?? undefined })
+                    : quizHref(course, nextItem.id)
+                  : null
+              }
+            >
+              {(lessonObj.pdfUrl ?? lessonObj.pdf_url) ? (
+                <div className="mt-6">
+                  <a
+                    href={String(lessonObj.pdfUrl ?? lessonObj.pdf_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)]"
+                  >
+                    📄 {t("courses.downloadPdf", "Download / View PDF")}
+                  </a>
+                </div>
+              ) : null}
+
+              {lessonObj.content ? (
+                <div className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 prose-custom text-[var(--color-foreground)]">
+                  {String(lessonObj.content).split("\n").map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </div>
+              ) : null}
+            </LessonStudentFlow>
+          ) : (
+            <>
+              {vdocipherVideoId ? (
+                <LessonWatchShell lessonId={lessonIdStr} videoId={vdocipherVideoId} />
+              ) : null}
+
+              {(lessonObj.pdfUrl ?? lessonObj.pdf_url) ? (
+                <div className="mt-6">
+                  <a
+                    href={String(lessonObj.pdfUrl ?? lessonObj.pdf_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)]"
+                  >
+                    📄 {t("courses.downloadPdf", "Download / View PDF")}
+                  </a>
+                </div>
+              ) : null}
+
+              {lessonObj.content ? (
+                <div className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 prose-custom text-[var(--color-foreground)]">
+                  {String(lessonObj.content).split("\n").map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </div>
+              ) : null}
+
+              <LessonNavigationBar
+                prevItem={prevItem}
+                nextItem={nextItem}
+                prevHref={
+                  prevItem
+                    ? prevItem.type === "lesson"
+                      ? lessonHref(course, { id: prevItem.id, slug: prevItem.slug ?? undefined })
+                      : quizHref(course, prevItem.id)
+                    : null
+                }
+                nextHref={
+                  nextItem
+                    ? nextItem.type === "lesson"
+                      ? lessonHref(course, { id: nextItem.id, slug: nextItem.slug ?? undefined })
+                      : quizHref(course, nextItem.id)
+                    : null
+                }
+                hasRatedCurrent={hasRatedCurrent}
+                watchComplete
+                isStudent={false}
+              />
+            </>
           )}
-
-          {isStudent ? <LessonRatingSection lessonId={String(lessonObj.id)} /> : null}
-
-          {/* أزرار السابق والتالي أسفل الحصة */}
-          <nav className="mt-8 flex w-full items-center justify-between gap-4 border-t border-[var(--color-border)] pt-6">
-            {prevItem ? (
-              <Link
-                href={prevItem.type === "lesson" ? lessonHref(course, { id: prevItem.id, slug: prevItem.slug ?? undefined }) : quizHref(course, prevItem.id)}
-                className="rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm font-medium transition hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-background)]"
-              >
-                ← {prevItem.type === "lesson"
-                  ? t("courses.previousLesson", "Previous lesson")
-                  : t("courses.previousQuiz", "Previous quiz")}
-              </Link>
-            ) : (
-              <span />
-            )}
-            {nextItem ? (
-              <Link
-                href={nextItem.type === "lesson" ? lessonHref(course, { id: nextItem.id, slug: nextItem.slug ?? undefined }) : quizHref(course, nextItem.id)}
-                className="rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-4 py-3 text-sm font-medium text-white transition hover:bg-[var(--color-primary-hover)]"
-              >
-                {nextItem.type === "lesson"
-                  ? t("courses.nextLesson", "Next lesson")
-                  : t("courses.nextQuiz", "Next quiz")} →
-              </Link>
-            ) : null}
-          </nav>
         </article>
 
-        {/* قائمة الكورس — العمود الضيق على الجانب */}
         <aside className="order-first lg:col-start-2 lg:row-start-1 lg:order-none">
           <CourseOutlineSidebar
             course={course}
@@ -226,6 +307,7 @@ export default async function LessonPage({ params }: Props) {
             quizzes={quizzes}
             currentLessonId={lessonObj.id as string}
             currentQuizId={null}
+            unlockedLessonIds={isStudent ? unlockedLessonIds : null}
           />
         </aside>
       </div>

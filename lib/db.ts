@@ -18,6 +18,7 @@ import type {
   ActivationCode,
   HomeworkSubmission,
   LessonRating,
+  CourseCertificate,
   Lesson,
   Quiz,
   Question,
@@ -944,6 +945,19 @@ const HOMEPAGE_DEFAULTS: HomepageSetting = {
     "بعد إرسال صورة التأكيد، يكون رصيدك في انتظار وصوله إلى حسابك. سيتم إضافة الرصيد خلال أقرب وقت.",
   addBalanceWaitingNoteEn: null,
   copyrightOverlayStyle: "floating",
+  certificateBackgroundUrl: null,
+  certificateTitle: "شهادة إتمام",
+  certificateTitleEn: "Certificate of Completion",
+  certificateSubtitle: "تم بنجاح إكمال جميع حصص هذا الكورس",
+  certificateSubtitleEn: "Successfully completed all lessons in this course",
+  certificateSignatureText: "إدارة المنصة",
+  certificateSignatureTextEn: "Platform Administration",
+  certificateAccentColor: "#1e3a5f",
+  certificateLogoUrl: null,
+  certificateNameTop: 48,
+  certificateNameLeft: 50,
+  certificateDateTop: 56,
+  certificateDateLeft: 50,
 };
 
 /** أعمدة نص قسم التعليقات في الصفحة الرئيسية */
@@ -1206,6 +1220,29 @@ async function ensureHomepageCopyrightOverlayColumns(): Promise<void> {
   return ensureOnce("ensureHomepageCopyrightOverlayColumns", async () => {
     try {
       await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS copyright_overlay_style TEXT`;
+    } catch {
+      /* DDL غير متاح */
+    }
+  });
+}
+
+/** تصميم شهادة إتمام الكورس (قابل للتعديل من لوحة الأدمن) */
+async function ensureCertificateTemplateColumns(): Promise<void> {
+  return ensureOnce("ensureCertificateTemplateColumns", async () => {
+    try {
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_background_url TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_title TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_title_en TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_subtitle TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_subtitle_en TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_signature_text TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_signature_text_en TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_accent_color TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_logo_url TEXT`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_name_top REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_name_left REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_date_top REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_date_left REAL`;
     } catch {
       /* DDL غير متاح */
     }
@@ -1928,6 +1965,58 @@ async function fetchHomepageSettingsFromDb(): Promise<HomepageSetting> {
         const s = raw != null ? String(raw).trim().toLowerCase() : "";
         return s === "watermark" ? "watermark" : "floating";
       })(),
+      certificateBackgroundUrl:
+        row.certificate_background_url != null && String(row.certificate_background_url).trim() !== ""
+          ? String(row.certificate_background_url).trim()
+          : HOMEPAGE_DEFAULTS.certificateBackgroundUrl ?? null,
+      certificateTitle:
+        row.certificate_title != null && String(row.certificate_title).trim() !== ""
+          ? String(row.certificate_title).trim().slice(0, 200)
+          : HOMEPAGE_DEFAULTS.certificateTitle ?? null,
+      certificateTitleEn:
+        row.certificate_title_en != null && String(row.certificate_title_en).trim() !== ""
+          ? String(row.certificate_title_en).trim().slice(0, 200)
+          : HOMEPAGE_DEFAULTS.certificateTitleEn ?? null,
+      certificateSubtitle:
+        row.certificate_subtitle != null && String(row.certificate_subtitle).trim() !== ""
+          ? String(row.certificate_subtitle).trim().slice(0, 500)
+          : HOMEPAGE_DEFAULTS.certificateSubtitle ?? null,
+      certificateSubtitleEn:
+        row.certificate_subtitle_en != null && String(row.certificate_subtitle_en).trim() !== ""
+          ? String(row.certificate_subtitle_en).trim().slice(0, 500)
+          : HOMEPAGE_DEFAULTS.certificateSubtitleEn ?? null,
+      certificateSignatureText:
+        row.certificate_signature_text != null && String(row.certificate_signature_text).trim() !== ""
+          ? String(row.certificate_signature_text).trim().slice(0, 200)
+          : HOMEPAGE_DEFAULTS.certificateSignatureText ?? null,
+      certificateSignatureTextEn:
+        row.certificate_signature_text_en != null && String(row.certificate_signature_text_en).trim() !== ""
+          ? String(row.certificate_signature_text_en).trim().slice(0, 200)
+          : HOMEPAGE_DEFAULTS.certificateSignatureTextEn ?? null,
+      certificateAccentColor:
+        row.certificate_accent_color != null && String(row.certificate_accent_color).trim() !== ""
+          ? String(row.certificate_accent_color).trim().slice(0, 20)
+          : HOMEPAGE_DEFAULTS.certificateAccentColor ?? null,
+      certificateLogoUrl:
+        row.certificate_logo_url != null && String(row.certificate_logo_url).trim() !== ""
+          ? String(row.certificate_logo_url).trim()
+          : HOMEPAGE_DEFAULTS.certificateLogoUrl ?? null,
+      certificateNameTop:
+        row.certificate_name_top != null && Number.isFinite(Number(row.certificate_name_top))
+          ? Number(row.certificate_name_top)
+          : HOMEPAGE_DEFAULTS.certificateNameTop ?? 48,
+      certificateNameLeft:
+        row.certificate_name_left != null && Number.isFinite(Number(row.certificate_name_left))
+          ? Number(row.certificate_name_left)
+          : HOMEPAGE_DEFAULTS.certificateNameLeft ?? 50,
+      certificateDateTop:
+        row.certificate_date_top != null && Number.isFinite(Number(row.certificate_date_top))
+          ? Number(row.certificate_date_top)
+          : HOMEPAGE_DEFAULTS.certificateDateTop ?? 56,
+      certificateDateLeft:
+        row.certificate_date_left != null && Number.isFinite(Number(row.certificate_date_left))
+          ? Number(row.certificate_date_left)
+          : HOMEPAGE_DEFAULTS.certificateDateLeft ?? 50,
     };
   } catch {
     return HOMEPAGE_DEFAULTS;
@@ -2066,6 +2155,19 @@ export async function updateHomepageSettings(data: {
   add_balance_waiting_note?: string | null;
   add_balance_waiting_note_en?: string | null;
   copyright_overlay_style?: "floating" | "watermark" | null;
+  certificate_background_url?: string | null;
+  certificate_title?: string | null;
+  certificate_title_en?: string | null;
+  certificate_subtitle?: string | null;
+  certificate_subtitle_en?: string | null;
+  certificate_signature_text?: string | null;
+  certificate_signature_text_en?: string | null;
+  certificate_accent_color?: string | null;
+  certificate_logo_url?: string | null;
+  certificate_name_top?: number | null;
+  certificate_name_left?: number | null;
+  certificate_date_top?: number | null;
+  certificate_date_left?: number | null;
   platform_news_enabled?: boolean;
   platform_news_items?: string | null;
   platform_news_section_title?: string | null;
@@ -2085,6 +2187,7 @@ export async function updateHomepageSettings(data: {
     ensureHomepagePlatformDetailsColumns(),
     ensureHomepagePlatformNewsColumns(),
     ensureHomepageCopyrightOverlayColumns(),
+    ensureCertificateTemplateColumns(),
     ensureHomepageStoreEnabledColumn(),
     ensureHomepageStoreSectionCopyColumns(),
   ]);
@@ -2472,6 +2575,58 @@ export async function updateHomepageSettings(data: {
   if (data.copyright_overlay_style !== undefined) {
     await ensureHomepageCopyrightOverlayColumns();
     await sql`UPDATE "HomepageSetting" SET copyright_overlay_style = ${data.copyright_overlay_style}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_background_url !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_background_url = ${data.certificate_background_url}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_title !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_title = ${data.certificate_title}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_title_en !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_title_en = ${data.certificate_title_en}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_subtitle !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_subtitle = ${data.certificate_subtitle}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_subtitle_en !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_subtitle_en = ${data.certificate_subtitle_en}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_signature_text !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_signature_text = ${data.certificate_signature_text}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_signature_text_en !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_signature_text_en = ${data.certificate_signature_text_en}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_accent_color !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_accent_color = ${data.certificate_accent_color}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_logo_url !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_logo_url = ${data.certificate_logo_url}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_name_top !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_name_top = ${data.certificate_name_top}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_name_left !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_name_left = ${data.certificate_name_left}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_date_top !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_date_top = ${data.certificate_date_top}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_date_left !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_date_left = ${data.certificate_date_left}, updated_at = NOW() WHERE id = 'default'`;
   }
   revalidateHomepageCaches();
 }
@@ -4291,6 +4446,187 @@ export async function upsertLessonRating(data: {
     RETURNING *
   `;
   return rowToCamel(rows[0] as Record<string, unknown>) as LessonRating;
+}
+
+export async function getUserRatedLessonIdsInCourse(
+  userId: string,
+  courseId: string,
+): Promise<string[]> {
+  await ensureLessonRatingsSchema();
+  if (!lessonRatingsSchemaAvailable) return [];
+  const rows = await sql`
+    SELECT lesson_id FROM "LessonRating"
+    WHERE user_id = ${userId} AND course_id = ${courseId}
+  `;
+  return (rows as { lesson_id: string }[]).map((r) => r.lesson_id);
+}
+
+let lessonWatchCompletionSchemaAvailable = true;
+
+async function ensureLessonWatchCompletionSchema(): Promise<void> {
+  return ensureOnce("ensureLessonWatchCompletionSchema", async () => {
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS "LessonWatchCompletion" (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          lesson_id TEXT NOT NULL,
+          course_id TEXT NOT NULL,
+          completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE (user_id, lesson_id)
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS "LessonWatchCompletion_user_id_idx" ON "LessonWatchCompletion"(user_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS "LessonWatchCompletion_course_id_idx" ON "LessonWatchCompletion"(course_id)`;
+    } catch {
+      lessonWatchCompletionSchemaAvailable = false;
+    }
+  });
+}
+
+export async function isLessonWatchComplete(userId: string, lessonId: string): Promise<boolean> {
+  await ensureLessonWatchCompletionSchema();
+  if (!lessonWatchCompletionSchemaAvailable) return false;
+  const rows = await sql`
+    SELECT 1 FROM "LessonWatchCompletion"
+    WHERE user_id = ${userId} AND lesson_id = ${lessonId}
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+export async function markLessonWatchComplete(data: {
+  user_id: string;
+  lesson_id: string;
+  course_id: string;
+}): Promise<void> {
+  await ensureLessonWatchCompletionSchema();
+  if (!lessonWatchCompletionSchemaAvailable) return;
+  const id = generateId();
+  await sql`
+    INSERT INTO "LessonWatchCompletion" (id, user_id, lesson_id, course_id, completed_at)
+    VALUES (${id}, ${data.user_id}, ${data.lesson_id}, ${data.course_id}, NOW())
+    ON CONFLICT (user_id, lesson_id) DO NOTHING
+  `;
+}
+
+export async function getUserCompletedLessonIdsInCourse(
+  userId: string,
+  courseId: string,
+): Promise<string[]> {
+  await ensureLessonWatchCompletionSchema();
+  if (!lessonWatchCompletionSchemaAvailable) return [];
+  const rows = await sql`
+    SELECT lesson_id FROM "LessonWatchCompletion"
+    WHERE user_id = ${userId} AND course_id = ${courseId}
+  `;
+  return (rows as { lesson_id: string }[]).map((r) => r.lesson_id);
+}
+
+let courseCertificatesSchemaAvailable = true;
+
+async function ensureCourseCertificatesSchema(): Promise<void> {
+  return ensureOnce("ensureCourseCertificatesSchema", async () => {
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS "CourseCertificate" (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          course_id TEXT NOT NULL,
+          certificate_code TEXT NOT NULL UNIQUE,
+          issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE (user_id, course_id)
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS "CourseCertificate_user_id_idx" ON "CourseCertificate"(user_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS "CourseCertificate_course_id_idx" ON "CourseCertificate"(course_id)`;
+    } catch {
+      courseCertificatesSchemaAvailable = false;
+    }
+  });
+}
+
+function generateCertificateCode(): string {
+  const part = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `CERT-${part}${Date.now().toString(36).slice(-4).toUpperCase()}`;
+}
+
+export async function isCourseCompletedByUser(userId: string, courseId: string): Promise<boolean> {
+  const lessons = await getLessonsByCourseId(courseId);
+  if (lessons.length === 0) return false;
+  const rated = new Set(await getUserRatedLessonIdsInCourse(userId, courseId));
+  return lessons.every((l) => rated.has(l.id));
+}
+
+export async function getCourseCertificateForUser(
+  userId: string,
+  courseId: string,
+): Promise<CourseCertificate | null> {
+  await ensureCourseCertificatesSchema();
+  if (!courseCertificatesSchemaAvailable) return null;
+  const rows = await sql`
+    SELECT * FROM "CourseCertificate"
+    WHERE user_id = ${userId} AND course_id = ${courseId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return rowToCamel(row as Record<string, unknown>) as CourseCertificate;
+}
+
+export async function issueCourseCertificateIfEligible(
+  userId: string,
+  courseId: string,
+): Promise<CourseCertificate | null> {
+  await ensureCourseCertificatesSchema();
+  if (!courseCertificatesSchemaAvailable) return null;
+
+  const existing = await getCourseCertificateForUser(userId, courseId);
+  if (existing) return existing;
+
+  const completed = await isCourseCompletedByUser(userId, courseId);
+  if (!completed) return null;
+
+  const id = generateId();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateCertificateCode();
+    try {
+      const rows = await sql`
+        INSERT INTO "CourseCertificate" (id, user_id, course_id, certificate_code, issued_at)
+        VALUES (${id}, ${userId}, ${courseId}, ${code}, NOW())
+        RETURNING *
+      `;
+      return rowToCamel(rows[0] as Record<string, unknown>) as CourseCertificate;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("unique") || msg.includes("duplicate")) {
+        const again = await getCourseCertificateForUser(userId, courseId);
+        if (again) return again;
+        continue;
+      }
+      throw e;
+    }
+  }
+  return null;
+}
+
+export async function listCourseCertificatesForUser(userId: string): Promise<
+  Array<CourseCertificate & { courseTitle?: string | null; courseSlug?: string | null }>
+> {
+  await ensureCourseCertificatesSchema();
+  if (!courseCertificatesSchemaAvailable) return [];
+  const rows = await sql`
+    SELECT cc.*, c.title AS course_title, c.slug AS course_slug
+    FROM "CourseCertificate" cc
+    INNER JOIN "Course" c ON c.id = cc.course_id
+    WHERE cc.user_id = ${userId}
+    ORDER BY cc.issued_at DESC
+  `;
+  return (rows as Record<string, unknown>[]).map((r) => ({
+    ...(rowToCamel(r) as CourseCertificate),
+    courseTitle: r.course_title != null ? String(r.course_title) : null,
+    courseSlug: r.course_slug != null ? String(r.course_slug) : null,
+  }));
 }
 
 export async function deleteActivationCode(id: string): Promise<void> {

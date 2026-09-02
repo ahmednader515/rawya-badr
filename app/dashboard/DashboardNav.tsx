@@ -53,8 +53,6 @@ export function DashboardNav({
         </NavLink>
         <NavLink href="/dashboard/statistics">{t("dashboardNav.studentStats", "Student statistics")}</NavLink>
         <NavLink href="/dashboard/codes">{t("dashboardNav.createCodes", "Create codes")}</NavLink>
-        <NavLink href="/dashboard/homework">{t("dashboardNav.homework", "Student homework")}</NavLink>
-        <NavLink href="/dashboard/messages">{t("dashboardNav.contactMyStudents", "Contact my students")}</NavLink>
         <NavLink href="/dashboard/live-streams">{t("dashboardNav.liveStreams", "Live streams")}</NavLink>
       </>
     );
@@ -63,9 +61,6 @@ export function DashboardNav({
   if (!isStaff) {
     return (
       <>
-        <NavLink href="/dashboard/messages">
-          {t("dashboardNav.inbox", "Inbox")}
-        </NavLink>
         <Link
           href="/courses"
           className={`${baseClass} ${inactiveClass}`}
@@ -94,16 +89,6 @@ export function DashboardNav({
           {t("dashboardNav.createCodes", "Create codes")}
         </NavLink>
       )}
-      {(isAdmin || isAssistant) && (
-        <NavLink href="/dashboard/homework">
-          {t("dashboardNav.homework", "Student homework")}
-        </NavLink>
-      )}
-      {(isAdmin || isAssistant) && (
-        <NavLink href="/dashboard/messages">
-          {t("dashboardNav.privateStudentMessages", "Private student messages")}
-        </NavLink>
-      )}
       {isAdmin && (
         <>
           <NavLink href="/dashboard/courses">
@@ -117,6 +102,9 @@ export function DashboardNav({
           </NavLink>
           <NavLink href="/dashboard/settings/copyright-overlay">
             {t("dashboardNav.copyrightSettings", "Copyright code settings")}
+          </NavLink>
+          <NavLink href="/dashboard/settings/certificate">
+            {t("dashboardNav.certificateSettings")}
           </NavLink>
           <NavLink href="/dashboard/live-streams">
             {t("dashboardNav.liveStreams", "Live streams")}

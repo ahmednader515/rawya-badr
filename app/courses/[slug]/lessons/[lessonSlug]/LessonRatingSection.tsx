@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useT } from "@/components/LocaleProvider";
 import { fillMessage } from "@/lib/i18n/interpolate";
 
@@ -14,8 +15,17 @@ type RatingSummary = {
   userRating: number | null;
 };
 
-export function LessonRatingSection({ lessonId }: { lessonId: string }) {
+export function LessonRatingSection({
+  lessonId,
+  mandatory = true,
+  onRated,
+}: {
+  lessonId: string;
+  mandatory?: boolean;
+  onRated?: () => void;
+}) {
   const t = useT();
+  const router = useRouter();
   const [summary, setSummary] = useState<RatingSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -55,12 +65,18 @@ export function LessonRatingSection({ lessonId }: { lessonId: string }) {
         credentials: "include",
         body: JSON.stringify({ rating: nextRating }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; summary?: RatingSummary };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        summary?: RatingSummary;
+        certificateIssued?: boolean;
+      };
       if (!res.ok) {
         setError(data.error || t("courses.lessonRatingSaveFailed", "Failed to save your rating"));
         return;
       }
       if (data.summary) setSummary(data.summary);
+      onRated?.();
+      router.refresh();
     } catch {
       setError(t("courses.lessonRatingSaveFailed", "Failed to save your rating"));
     } finally {
@@ -68,14 +84,29 @@ export function LessonRatingSection({ lessonId }: { lessonId: string }) {
     }
   }
 
+  const hasRated = (summary?.userRating ?? 0) >= 1;
+
   return (
     <section className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-[var(--color-foreground)]">
-        {t("courses.rateLessonTitle", "Rate this lesson")}
+        {mandatory
+          ? t("courses.rateLessonRequiredTitle", "Rate this lesson (required)")
+          : t("courses.rateLessonTitle", "Rate this lesson")}
       </h3>
       <p className="mt-1 text-xs text-[var(--color-muted)]">
-        {t("courses.rateLessonSubtitle", "Your rating helps improve course quality for everyone.")}
+        {mandatory
+          ? t(
+              "courses.rateLessonRequiredSubtitle",
+              "You must rate this lesson before you can open the next one.",
+            )
+          : t("courses.rateLessonSubtitle", "Your rating helps improve course quality for everyone.")}
       </p>
+
+      {mandatory && !loading && !hasRated ? (
+        <p className="mt-2 rounded-[var(--radius-btn)] bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          {t("courses.rateLessonRequiredBanner", "Rating is mandatory to continue the course.")}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((value) => {

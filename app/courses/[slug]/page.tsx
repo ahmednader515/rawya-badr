@@ -12,9 +12,11 @@ import {
   getLiveStreamsByCourseId,
   getHomepageSettings,
   hasFullCourseAccessAsStudent,
+  getCourseCertificateForUser,
   userHasActivePlatformSubscriptionForPaidCourse,
   getLatestPlatformSubscriptionExpiry,
 } from "@/lib/db";
+import { getUnlockedLessonIdsForStudent } from "@/lib/lesson-sequence";
 import { EnrollButton } from "./EnrollButton";
 import { getLocaleFromCookie, getServerTranslator } from "@/lib/i18n/server";
 import { pickLocalizedText } from "@/lib/i18n/localized-field";
@@ -86,16 +88,18 @@ export default async function CoursePage({ params }: Props) {
   let hasFullStudentAccess = false;
   let paidCourseCoveredBySubscription = false;
   let subscriptionExpiresAt: Date | null = null;
+  let courseCertificate: Awaited<ReturnType<typeof getCourseCertificateForUser>> = null;
   try {
     data = await getCourseWithContent(decoded);
     if (data?.course && session?.user?.id && session.user.role === "STUDENT") {
-      const [en, user, lessons, quizzes, fullAccess, subPaid] = await Promise.all([
+      const [en, user, lessons, quizzes, fullAccess, subPaid, cert] = await Promise.all([
         getEnrollment(session.user.id, data.course.id),
         getUserById(session.user.id),
         getAllowedLessonIdsForUserCourse(session.user.id, data.course.id),
         getAllowedQuizIdsForUserCourse(session.user.id, data.course.id),
         hasFullCourseAccessAsStudent(session.user.id, data.course.id),
         userHasActivePlatformSubscriptionForPaidCourse(session.user.id, data.course.id),
+        getCourseCertificateForUser(session.user.id, data.course.id),
       ]);
       isEnrolled = !!en;
       if (!isEnrolled) {
@@ -105,6 +109,7 @@ export default async function CoursePage({ params }: Props) {
       userBalance = Number(user?.balance) || 0;
       hasFullStudentAccess = fullAccess;
       paidCourseCoveredBySubscription = subPaid && !isEnrolled;
+      courseCertificate = cert;
       if (paidCourseCoveredBySubscription) {
         subscriptionExpiresAt = await getLatestPlatformSubscriptionExpiry(session.user.id);
       }
@@ -153,6 +158,25 @@ export default async function CoursePage({ params }: Props) {
   };
 
   const isGuest = !session;
+  const isStudent = session?.user?.role === "STUDENT";
+
+  let unlockedLessonIds: Set<string> | null = null;
+  if (isStudent && session?.user?.id && canAccessContent) {
+    const partialOnly = !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0;
+    unlockedLessonIds = await getUnlockedLessonIdsForStudent({
+      userId: session.user.id,
+      role: session.user.role,
+      courseLessons: course.lessons.map((l) => ({
+        id: String((l as Record<string, unknown>).id ?? l.id),
+        order:
+          typeof (l as Record<string, unknown>).order === "number"
+            ? ((l as Record<string, unknown>).order as number)
+            : null,
+      })),
+      courseId: course.id,
+      allowedLessonIds: partialOnly ? allowedLessonIds : null,
+    });
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
@@ -314,8 +338,22 @@ export default async function CoursePage({ params }: Props) {
             )}
             {isEnrolled && (
               <p className="mt-4 rounded-[var(--radius-btn)] bg-[var(--color-primary-light)]/50 px-4 py-2 text-sm text-[var(--color-primary)]">
-                ✓ {t("courses.youAreEnrolled", "You are enrolled in this course.")} <Link href="/dashboard" className="font-medium underline">{t("dashboard.title", "Dashboard")}</Link>
+                ✓ {t("courses.youAreEnrolled", "You are enrolled in this course.")}{" "}
+                <Link href="/dashboard" className="font-medium underline">
+                  {t("dashboard.title", "Dashboard")}
+                </Link>
               </p>
+            )}
+
+            {courseCertificate && (
+              <div className="mt-4">
+                <Link
+                  href={`/courses/${String((course as Record<string, unknown>).slug ?? "").trim() || course.id}/certificate`}
+                  className="inline-flex rounded-[var(--radius-btn)] bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                >
+                  🎓 {t("courses.viewCertificate", "View your certificate")}
+                </Link>
+              </div>
             )}
 
             {paidCourseCoveredBySubscription && subscriptionExpiresAt && (
@@ -341,11 +379,27 @@ export default async function CoursePage({ params }: Props) {
                     ? course.lessons.filter((l) => allowedLessonIds.includes(String((l as Record<string, unknown>).id ?? l.id)))
                     : course.lessons
                   ).map((lesson, i) => {
-                    const lessonClassName = `flex items-center gap-3 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-3 ${canAccessContent ? "transition hover:border-[var(--color-primary)]/30" : ""}`;
+                    const lessonId = String((lesson as Record<string, unknown>).id ?? lesson.id);
+                    const isLessonLocked =
+                      isStudent && unlockedLessonIds != null && !unlockedLessonIds.has(lessonId);
+                    const lessonCanOpen = canAccessContent && !isLessonLocked;
+                    const lessonClassName = `flex items-center gap-3 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-3 ${
+                      lessonCanOpen
+                        ? "transition hover:border-[var(--color-primary)]/30"
+                        : isLessonLocked
+                          ? "cursor-not-allowed opacity-60"
+                          : ""
+                    }`;
                     const content = (
                       <>
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)]/20 text-sm font-medium text-[var(--color-primary)]">
-                          {i + 1}
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
+                            isLessonLocked
+                              ? "bg-[var(--color-muted)]/20 text-[var(--color-muted)]"
+                              : "bg-[var(--color-primary)]/20 text-[var(--color-primary)]"
+                          }`}
+                        >
+                          {isLessonLocked ? "🔒" : i + 1}
                         </span>
                         <div className="min-w-0 flex-1">
                           <span className="font-medium text-[var(--color-foreground)]">
@@ -356,8 +410,13 @@ export default async function CoursePage({ params }: Props) {
                               • {String((lesson as Record<string, unknown>).duration)} {t("courses.minutes", "minutes")}
                             </span>
                           ) : null}
-                          {(lesson as Record<string, unknown>).videoUrl && canAccessContent ? (
+                          {(lesson as Record<string, unknown>).videoUrl && lessonCanOpen ? (
                             <span className="mr-2 text-xs text-[var(--color-primary)]">▶ {t("courses.videoTag", "Video")}</span>
+                          ) : null}
+                          {isLessonLocked ? (
+                            <span className="mr-2 text-xs text-[var(--color-muted)]">
+                              {t("courses.lessonLocked", "Complete and rate the previous lesson first")}
+                            </span>
                           ) : null}
                         </div>
                       </>
@@ -365,10 +424,10 @@ export default async function CoursePage({ params }: Props) {
                     const courseSlugOrId = String((course as Record<string, unknown>).slug ?? "").trim() || String((course as Record<string, unknown>).id ?? course.id);
                     const lessonSlugOrId = (lesson as Record<string, unknown>).slug && String((lesson as Record<string, unknown>).slug).trim()
                       ? encodeURIComponent(String((lesson as Record<string, unknown>).slug).trim())
-                      : String((lesson as Record<string, unknown>).id ?? lesson.id);
+                      : lessonId;
                     return (
-                      <li key={String(lesson.id)}>
-                        {canAccessContent ? (
+                      <li key={lessonId}>
+                        {lessonCanOpen ? (
                           <Link
                             href={`/courses/${courseSlugOrId}/lessons/${lessonSlugOrId}`}
                             className={lessonClassName}
@@ -376,7 +435,10 @@ export default async function CoursePage({ params }: Props) {
                             {content}
                           </Link>
                         ) : (
-                          <div className={lessonClassName}>
+                          <div
+                            className={lessonClassName}
+                            title={isLessonLocked ? t("courses.lessonLocked", "Complete and rate the previous lesson first") : undefined}
+                          >
                             {content}
                           </div>
                         )}

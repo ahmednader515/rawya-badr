@@ -271,6 +271,28 @@ export interface HomepageSetting {
   addBalanceWaitingNoteEn?: string | null;
   /** شكل عرض كود حقوق الطبع على مشغل الفيديو (floating الحالي أو watermark) */
   copyrightOverlayStyle?: "floating" | "watermark" | string | null;
+  /** تصميم شهادة إتمام الكورس */
+  certificateBackgroundUrl?: string | null;
+  certificateTitle?: string | null;
+  certificateTitleEn?: string | null;
+  certificateSubtitle?: string | null;
+  certificateSubtitleEn?: string | null;
+  certificateSignatureText?: string | null;
+  certificateSignatureTextEn?: string | null;
+  certificateAccentColor?: string | null;
+  certificateLogoUrl?: string | null;
+  certificateNameTop?: number | null;
+  certificateNameLeft?: number | null;
+  certificateDateTop?: number | null;
+  certificateDateLeft?: number | null;
+}
+
+export interface CourseCertificate {
+  id: string;
+  user_id: string;
+  course_id: string;
+  certificate_code: string;
+  issued_at: Date;
 }
 
 export interface StoreProduct {

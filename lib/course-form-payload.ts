@@ -20,8 +20,6 @@ export type CourseFormCoreState = {
     videoUrl: string;
     content: string;
     pdfUrl: string;
-    acceptsHomework: boolean;
-    homeworkImageUrl: string;
   }>;
   quizzes: Array<{
     title: string;
@@ -59,8 +57,6 @@ export function buildCourseAutosavePayload(state: CourseFormCoreState): CourseAu
       videoUrl: l.videoUrl || undefined,
       content: l.content || undefined,
       pdfUrl: l.pdfUrl || undefined,
-      acceptsHomework: l.acceptsHomework,
-      homeworkImageUrl: l.acceptsHomework ? l.homeworkImageUrl || undefined : undefined,
     })),
     quizzes: state.quizzes.map((q) => ({
       title: q.title,

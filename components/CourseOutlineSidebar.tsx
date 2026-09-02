@@ -23,10 +23,23 @@ type Props = {
   quizzes: Array<Record<string, unknown> & { id: string; title?: string; order?: number; _count?: { questions?: number } }>;
   currentLessonId?: string | null;
   currentQuizId?: string | null;
+  unlockedLessonIds?: string[] | null;
 };
 
-export async function CourseOutlineSidebar({ course, lessons, quizzes, currentLessonId, currentQuizId }: Props) {
+export async function CourseOutlineSidebar({
+  course,
+  lessons,
+  quizzes,
+  currentLessonId,
+  currentQuizId,
+  unlockedLessonIds,
+}: Props) {
   const t = await getServerTranslator();
+  const unlockedSet =
+    unlockedLessonIds && unlockedLessonIds.length > 0
+      ? new Set(unlockedLessonIds)
+      : null;
+
   const lessonOrder = (l: { order?: number }) => (typeof l.order === "number" ? l.order : 999);
   const quizOrder = (q: { order?: number }) => (typeof q.order === "number" ? q.order : 999);
   const items = [
@@ -36,26 +49,37 @@ export async function CourseOutlineSidebar({ course, lessons, quizzes, currentLe
 
   return (
     <div className="sticky top-24 w-full max-w-[200px] rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-card)]">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">{t("courses.courseContent", "Course content")}</h2>
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+        {t("courses.courseContent", "Course content")}
+      </h2>
       <ul className="space-y-0.5">
         {items.map((item, i) => {
           if (item.type === "lesson") {
             const l = item.data;
             const isCurrent = l.id === currentLessonId;
+            const isLocked = unlockedSet != null && !unlockedSet.has(l.id);
             const title = String((l as Record<string, unknown>).titleAr ?? (l as Record<string, unknown>).title ?? "");
+            const className = `block rounded-[var(--radius-btn)] px-2 py-1.5 text-xs transition ${
+              isCurrent
+                ? "bg-[var(--color-primary)]/15 font-medium text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/30"
+                : isLocked
+                  ? "cursor-not-allowed text-[var(--color-muted)] opacity-60"
+                  : "text-[var(--color-foreground)] hover:bg-[var(--color-background)]"
+            }`;
             return (
               <li key={`l-${l.id}`}>
-                <Link
-                  href={lessonHref(course, l)}
-                  className={`block rounded-[var(--radius-btn)] px-2 py-1.5 text-xs transition ${
-                    isCurrent
-                      ? "bg-[var(--color-primary)]/15 font-medium text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/30"
-                      : "text-[var(--color-foreground)] hover:bg-[var(--color-background)]"
-                  }`}
-                >
-                  <span className="ml-1.5 text-[var(--color-muted)]">{i + 1}</span>
-                  <span>{title}</span>
-                </Link>
+                {isLocked ? (
+                  <span className={className} title={t("courses.lessonLocked", "Complete and rate the previous lesson first")}>
+                    <span className="ml-1.5 text-[var(--color-muted)]">{i + 1}</span>
+                    <span className="ml-1 opacity-70">🔒</span>
+                    <span>{title}</span>
+                  </span>
+                ) : (
+                  <Link href={lessonHref(course, l)} className={className}>
+                    <span className="ml-1.5 text-[var(--color-muted)]">{i + 1}</span>
+                    <span>{title}</span>
+                  </Link>
+                )}
               </li>
             );
           }

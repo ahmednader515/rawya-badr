@@ -10,7 +10,7 @@ import { useCourseAutosave } from "@/hooks/useCourseAutosave";
 import { buildCourseAutosavePayload } from "@/lib/course-form-payload";
 
 type CategoryOption = { id: string; name: string; nameAr?: string | null };
-type LessonRow = { title: string; videoUrl: string; content: string; pdfUrl: string; acceptsHomework: boolean; homeworkImageUrl: string };
+type LessonRow = { title: string; videoUrl: string; content: string; pdfUrl: string };
 type QuestionOptionRow = { text: string; isCorrect: boolean };
 type QuestionRow = { type: "MULTIPLE_CHOICE" | "TRUE_FALSE"; questionText: string; questionImageUrl: string; options: QuestionOptionRow[] };
 type QuizRow = { title: string; timeLimitMinutes: string; questions: QuestionRow[] };
@@ -39,7 +39,7 @@ type InitialData = {
   contentOrder: ContentOrderEntry[];
 };
 
-const defaultLesson: LessonRow = { title: "", videoUrl: "", content: "", pdfUrl: "", acceptsHomework: false, homeworkImageUrl: "" };
+const defaultLesson: LessonRow = { title: "", videoUrl: "", content: "", pdfUrl: "" };
 const defaultQuiz: QuizRow = { title: "", timeLimitMinutes: "", questions: [{ type: "MULTIPLE_CHOICE", questionText: "", questionImageUrl: "", options: [{ text: "", isCorrect: false }] }] };
 
 function questionHasBody(qt: { questionText: string; questionImageUrl: string }) {
@@ -81,9 +81,10 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
       ? initialData.lessons.map((l) => {
           const r = l as Record<string, unknown>;
           return {
-            ...l,
-            homeworkImageUrl: String(r.homeworkImageUrl ?? r.homework_image_url ?? l.homeworkImageUrl ?? ""),
-            acceptsHomework: Boolean(r.acceptsHomework ?? r.accepts_homework ?? false),
+            title: String(l.title ?? ""),
+            videoUrl: String(l.videoUrl ?? r.video_url ?? ""),
+            content: String(l.content ?? ""),
+            pdfUrl: String(l.pdfUrl ?? r.pdf_url ?? ""),
           };
         })
       : [defaultLesson]
@@ -361,8 +362,6 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
         videoUrl: l.videoUrl.trim() || undefined,
         content: l.content.trim() || undefined,
         pdfUrl: l.pdfUrl.trim() || undefined,
-        acceptsHomework: l.acceptsHomework,
-        homeworkImageUrl: l.acceptsHomework ? l.homeworkImageUrl.trim() || undefined : undefined,
       })),
       quizzes: validQuizzes,
       contentOrder: filteredContentOrder,
@@ -610,18 +609,6 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
                 )}
               </div>
               <textarea value={lesson.content} onChange={(e) => updateLesson(i, "content", e.target.value)} placeholder={t(`${Cf}.notesPlaceholder`)} rows={2} className="w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm" />
-              <label className="flex items-center gap-2 pt-2">
-                <input type="checkbox" checked={lesson.acceptsHomework} onChange={(e) => updateLesson(i, "acceptsHomework", e.target.checked)} className="rounded border-[var(--color-border)]" />
-                <span className="text-sm text-[var(--color-foreground)]">{t(`${Cf}.homeworkCheckbox`)}</span>
-              </label>
-              {lesson.acceptsHomework ? (
-                <ImageAttachField
-                  value={lesson.homeworkImageUrl}
-                  onChange={(url) => updateLesson(i, "homeworkImageUrl", url)}
-                  label={t(`${Cf}.homeworkImageLabel`)}
-                  help={t(`${Cf}.homeworkImageHelp`)}
-                />
-              ) : null}
             </div>
           </div>
         ))}

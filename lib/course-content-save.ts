@@ -84,8 +84,8 @@ export function prepareLessonsForSave(lessons: LessonInput[] | undefined, draft:
       videoUrl: l.videoUrl?.trim() || undefined,
       content: l.content?.trim() || undefined,
       pdfUrl: l.pdfUrl?.trim() || undefined,
-      acceptsHomework: !!l.acceptsHomework,
-      homeworkImageUrl: l.acceptsHomework ? l.homeworkImageUrl?.trim() || undefined : undefined,
+      acceptsHomework: false,
+      homeworkImageUrl: undefined,
     }));
   }
   return list
@@ -96,8 +96,8 @@ export function prepareLessonsForSave(lessons: LessonInput[] | undefined, draft:
       videoUrl: l.videoUrl?.trim() || undefined,
       content: l.content?.trim() || undefined,
       pdfUrl: l.pdfUrl?.trim() || undefined,
-      acceptsHomework: !!l.acceptsHomework,
-      homeworkImageUrl: l.acceptsHomework ? l.homeworkImageUrl?.trim() || undefined : undefined,
+      acceptsHomework: false,
+      homeworkImageUrl: undefined,
     }));
 }
 

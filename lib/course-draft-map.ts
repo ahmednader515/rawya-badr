@@ -5,8 +5,6 @@ export type DraftLessonRow = {
   videoUrl: string;
   content: string;
   pdfUrl: string;
-  acceptsHomework: boolean;
-  homeworkImageUrl: string;
 };
 
 export type DraftQuizRow = {
@@ -59,8 +57,6 @@ export function mapDraftToFormState(draft: {
           videoUrl: String(l.videoUrl ?? l.video_url ?? ""),
           content: String(l.content ?? ""),
           pdfUrl: String(l.pdfUrl ?? l.pdf_url ?? ""),
-          acceptsHomework: Boolean(l.acceptsHomework ?? l.accepts_homework ?? false),
-          homeworkImageUrl: String(l.homeworkImageUrl ?? l.homework_image_url ?? ""),
         }))
       : [
           {
@@ -68,8 +64,6 @@ export function mapDraftToFormState(draft: {
             videoUrl: "",
             content: "",
             pdfUrl: "",
-            acceptsHomework: false,
-            homeworkImageUrl: "",
           },
         ];
 

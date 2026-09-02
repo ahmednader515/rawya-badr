@@ -8,19 +8,67 @@ type Props = {
   lessonId: string;
   videoId: string;
   className?: string;
+  onVideoComplete?: () => void;
 };
 
 type PlayerState = "loading" | "ready" | "processing" | "error";
 
-export function VdoCipherPlayer({ lessonId, videoId, className = "w-full" }: Props) {
+type VdoPlayerApi = {
+  getInstance: (iframe: HTMLIFrameElement) => {
+    video: {
+      addEventListener: (event: string, handler: () => void) => void;
+      removeEventListener: (event: string, handler: () => void) => void;
+    };
+  };
+};
+
+declare global {
+  interface Window {
+    VdoPlayer?: VdoPlayerApi;
+  }
+}
+
+const VDO_API_SCRIPT = "https://player.vdocipher.com/v2/api.js";
+
+function loadVdoCipherApi(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (window.VdoPlayer) return Promise.resolve();
+  const existing = document.querySelector(`script[src="${VDO_API_SCRIPT}"]`);
+  if (existing) {
+    return new Promise((resolve) => {
+      existing.addEventListener("load", () => resolve(), { once: true });
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = VDO_API_SCRIPT;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load VdoCipher API"));
+    document.body.appendChild(script);
+  });
+}
+
+export function VdoCipherPlayer({ lessonId, videoId, className = "w-full", onVideoComplete }: Props) {
   const t = useT();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const completeFiredRef = useRef(false);
+  const onVideoCompleteRef = useRef(onVideoComplete);
+  onVideoCompleteRef.current = onVideoComplete;
+
   const [playerKey, setPlayerKey] = useState(0);
   const [state, setState] = useState<PlayerState>("loading");
   const [error, setError] = useState("");
   const [src, setSrc] = useState("");
 
+  const fireComplete = useCallback(() => {
+    if (completeFiredRef.current) return;
+    completeFiredRef.current = true;
+    onVideoCompleteRef.current?.();
+  }, []);
+
   const loadOtp = useCallback(async () => {
+    completeFiredRef.current = false;
     setState("loading");
     setError("");
     setSrc("");
@@ -62,6 +110,32 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full" }: Pro
   useEffect(() => {
     void loadOtp();
   }, [loadOtp, videoId]);
+
+  useEffect(() => {
+    if (state !== "ready" || !iframeRef.current || !onVideoCompleteRef.current) return;
+
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+
+    void loadVdoCipherApi()
+      .then(() => {
+        if (cancelled || !iframeRef.current || !window.VdoPlayer) return;
+        try {
+          const player = window.VdoPlayer.getInstance(iframeRef.current);
+          const onEnded = () => fireComplete();
+          player.video.addEventListener("ended", onEnded);
+          cleanup = () => player.video.removeEventListener("ended", onEnded);
+        } catch {
+          /* player not ready yet */
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, [state, playerKey, fireComplete]);
 
   return (
     <div className={`relative aspect-video w-full bg-black ${className}`.trim()}>
