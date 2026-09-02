@@ -44,11 +44,6 @@ export const arMessages: Messages = {
     switchToAr: "التبديل إلى العربية",
     switchToEn: "Switch to English",
   },
-  mobileBlocked: {
-    title: "لا يمكن الدخول حالياً",
-    message:
-      "المنصة غير متاحة على الهاتف المحمول في الوقت الحالي. يرجى الدخول من متصفح على جهاز كمبيوتر.",
-  },
   footer: {
     defaultTitle: "منصتي التعليمية",
     defaultTagline: "تعلم بأسلوب حديث ومنهجية واضحة",
@@ -256,6 +251,11 @@ export const arMessages: Messages = {
     processing: "الفيديو قيد المعالجة. حاول مرة أخرى بعد دقائق.",
     retry: "إعادة المحاولة",
     playerTitle: "فيديو الحصة",
+    zenPlayerHint:
+      "على أندرويد، شاهد هذه الحصة عبر تطبيق Zen Player. ثبّت التطبيق من Google Play إن لم يكن مثبتاً، ثم اضغط «فتح في Zen Player».",
+    zenPlayerOpen: "فتح في Zen Player",
+    zenPlayerInstall: "تثبيت Zen Player",
+    zenPlayerMarkComplete: "انتهيت من المشاهدة — متابعة",
   },
   dashboard: {
     title: "لوحة التحكم",

@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { buildVdoCipherPlayerSrc } from "@/lib/vdocipher";
+import { isAndroidMobileClient, ZEN_PLAYER_PLAY_STORE_URL } from "@/lib/android-browser";
+import {
+  buildVdoCipherPlayerSrc,
+  buildZenPlayerAndroidIntentUrl,
+} from "@/lib/vdocipher";
 import { useT } from "./LocaleProvider";
 
 type Props = {
@@ -56,10 +60,16 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full", onVid
   const onVideoCompleteRef = useRef(onVideoComplete);
   onVideoCompleteRef.current = onVideoComplete;
 
+  const [useZenPlayer, setUseZenPlayer] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
   const [state, setState] = useState<PlayerState>("loading");
   const [error, setError] = useState("");
   const [src, setSrc] = useState("");
+  const [zenIntentUrl, setZenIntentUrl] = useState("");
+
+  useEffect(() => {
+    setUseZenPlayer(isAndroidMobileClient());
+  }, []);
 
   const fireComplete = useCallback(() => {
     if (completeFiredRef.current) return;
@@ -72,6 +82,7 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full", onVid
     setState("loading");
     setError("");
     setSrc("");
+    setZenIntentUrl("");
 
     try {
       const res = await fetch(`/api/lessons/${encodeURIComponent(lessonId)}/video-otp`, {
@@ -98,7 +109,9 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full", onVid
         throw new Error(data.error || t("video.loadFailed", "Failed to load video"));
       }
 
-      setSrc(buildVdoCipherPlayerSrc(data.otp, data.playbackInfo, { playerId: data.playerId }));
+      const playerOptions = { playerId: data.playerId };
+      setSrc(buildVdoCipherPlayerSrc(data.otp, data.playbackInfo, playerOptions));
+      setZenIntentUrl(buildZenPlayerAndroidIntentUrl(data.otp, data.playbackInfo, playerOptions));
       setPlayerKey((k) => k + 1);
       setState("ready");
     } catch (e) {
@@ -112,7 +125,9 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full", onVid
   }, [loadOtp, videoId]);
 
   useEffect(() => {
-    if (state !== "ready" || !iframeRef.current || !onVideoCompleteRef.current) return;
+    if (useZenPlayer || state !== "ready" || !iframeRef.current || !onVideoCompleteRef.current) {
+      return;
+    }
 
     let cleanup: (() => void) | undefined;
     let cancelled = false;
@@ -135,11 +150,42 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full", onVid
       cancelled = true;
       cleanup?.();
     };
-  }, [state, playerKey, fireComplete]);
+  }, [useZenPlayer, state, playerKey, fireComplete]);
 
   return (
     <div className={`relative aspect-video w-full bg-black ${className}`.trim()}>
-      {state === "ready" && src ? (
+      {state === "ready" && useZenPlayer && src ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-5 py-6 text-center">
+          <p className="text-sm leading-relaxed text-white/90">{t("video.zenPlayerHint")}</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+            <a
+              href={zenIntentUrl || src}
+              className="inline-flex items-center justify-center rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]"
+            >
+              {t("video.zenPlayerOpen")}
+            </a>
+            <a
+              href={ZEN_PLAYER_PLAY_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-[var(--radius-btn)] border border-white/30 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/10"
+            >
+              {t("video.zenPlayerInstall")}
+            </a>
+          </div>
+          {onVideoComplete ? (
+            <button
+              type="button"
+              onClick={fireComplete}
+              className="mt-2 text-sm font-medium text-white/80 underline-offset-2 hover:text-white hover:underline"
+            >
+              {t("video.zenPlayerMarkComplete")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {state === "ready" && !useZenPlayer && src ? (
         <iframe
           key={playerKey}
           ref={iframeRef}

@@ -10,7 +10,6 @@ import { StoreSplashProvider } from "@/components/StoreSplashProvider";
 import { DeferredInspectGuard } from "@/components/DeferredInspectGuard";
 import { DeferredStudentDrmSentinel } from "@/components/DeferredStudentDrmSentinel";
 import { ForceLogoutGuard } from "@/components/ForceLogoutGuard";
-import { MobileBrowserGuard } from "@/components/MobileBrowserGuard";
 import { authOptions } from "@/lib/auth";
 import {
   getHomepageSettings,
@@ -167,7 +166,6 @@ export default async function RootLayout({
             <DeferredInspectGuard />
             <DeferredStudentDrmSentinel />
             <ForceLogoutGuard />
-            <MobileBrowserGuard />
             <Header
               platformName={platformName}
               headerLogoUrl={headerLogoUrl}

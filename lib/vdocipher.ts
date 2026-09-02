@@ -1,4 +1,5 @@
 const VDOCIPHER_API_BASE = "https://dev.vdocipher.com/api";
+const ZEN_PLAYER_PACKAGE = "com.vdocipher.zenplayer";
 
 export type VdoCipherClientPayload = {
   policy: string;
@@ -102,6 +103,20 @@ export function buildVdoCipherPlayerSrc(
   // VdoCipher v2 iframe uses `player`, not `playerId` (see official WP plugin).
   if (playerId) params.set("player", playerId);
   return `https://player.vdocipher.com/v2/?${params.toString()}`;
+}
+
+/** Android intent URL that opens VdoCipher Zen Player when installed. */
+export function buildZenPlayerAndroidIntentUrl(
+  otp: string,
+  playbackInfo: string,
+  options?: {
+    playerId?: string | null;
+  },
+): string {
+  const playerUrl = buildVdoCipherPlayerSrc(otp, playbackInfo, options);
+  const withoutScheme = playerUrl.replace(/^https:\/\//, "");
+  const fallback = encodeURIComponent(playerUrl);
+  return `intent://${withoutScheme}#Intent;scheme=https;package=${ZEN_PLAYER_PACKAGE};S.browser_fallback_url=${fallback};end`;
 }
 
 function authHeaders(): HeadersInit {

@@ -44,11 +44,6 @@ export const enMessages: Messages = {
     switchToAr: "Switch to Arabic",
     switchToEn: "Switch to English",
   },
-  mobileBlocked: {
-    title: "No access for now",
-    message:
-      "This platform is not available on mobile phones at the moment. Please visit from a desktop or laptop browser.",
-  },
   footer: {
     defaultTitle: "My Learning Platform",
     defaultTagline: "Learn with a modern and clear method",
@@ -256,6 +251,11 @@ export const enMessages: Messages = {
     processing: "Video is still processing. Please try again in a few minutes.",
     retry: "Retry",
     playerTitle: "Lesson video",
+    zenPlayerHint:
+      "On Android, watch this lesson in the Zen Player app. Install it from Google Play if needed, then tap Open in Zen Player.",
+    zenPlayerOpen: "Open in Zen Player",
+    zenPlayerInstall: "Install Zen Player",
+    zenPlayerMarkComplete: "I finished watching — continue",
   },
   dashboard: {
     title: "Dashboard",
