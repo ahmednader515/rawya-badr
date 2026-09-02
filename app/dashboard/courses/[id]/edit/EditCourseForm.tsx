@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/LocaleProvider";
 import { CourseFormSaveOverlay } from "../../CourseFormSaveOverlay";
 import { ImageAttachField } from "@/components/ImageAttachField";
+import { LessonVideoUpload } from "@/components/LessonVideoUpload";
+import { useCourseAutosave } from "@/hooks/useCourseAutosave";
+import { buildCourseAutosavePayload } from "@/lib/course-form-payload";
 
 type CategoryOption = { id: string; name: string; nameAr?: string | null };
 type LessonRow = { title: string; videoUrl: string; content: string; pdfUrl: string; acceptsHomework: boolean; homeworkImageUrl: string };
@@ -148,6 +151,37 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState("");
   const [pdfUploading, setPdfUploading] = useState<number | null>(null);
+
+  const formRef = useRef(form);
+  const lessonsRef = useRef(lessons);
+  const quizzesRef = useRef(quizzes);
+  const contentOrderRef = useRef(contentOrder);
+  formRef.current = form;
+  lessonsRef.current = lessons;
+  quizzesRef.current = quizzes;
+  contentOrderRef.current = contentOrder;
+
+  const getPayload = useCallback(
+    () =>
+      buildCourseAutosavePayload({
+        form: formRef.current,
+        lessons: lessonsRef.current,
+        quizzes: quizzesRef.current,
+        contentOrder: contentOrderRef.current,
+        isPublished: formRef.current.isPublished,
+      }),
+    [],
+  );
+
+  const { status: autosaveStatus, scheduleSave, saveNow } = useCourseAutosave({
+    courseId,
+    getPayload,
+    skipInitialLoad: true,
+  });
+
+  useEffect(() => {
+    scheduleSave();
+  }, [scheduleSave, form, lessons, quizzes, contentOrder]);
 
   function addLesson() {
     setLessons((l) => [...l, { ...defaultLesson }]);
@@ -363,6 +397,16 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
         </div>
       )}
 
+      {autosaveStatus !== "idle" && (
+        <div className="rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-muted)]">
+          {autosaveStatus === "saving"
+            ? t(`${Cf}.draftSaving`, "Saving draft…")
+            : autosaveStatus === "saved"
+              ? t(`${Cf}.draftSaved`, "Draft saved")
+              : t(`${Cf}.draftSaveFailed`, "Draft save failed")}
+        </div>
+      )}
+
       <section className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h3 className="mb-4 text-lg font-semibold text-[var(--color-foreground)]">{t(`${Cf}.sectionCourseBasics`)}</h3>
         <div className="space-y-4">
@@ -519,7 +563,18 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
             </div>
             <div className="space-y-2">
               <input type="text" value={lesson.title} onChange={(e) => updateLesson(i, "title", e.target.value)} placeholder={t(`${Cf}.lessonTitlePlaceholder`)} className="w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm" />
-              <input type="url" value={lesson.videoUrl} onChange={(e) => updateLesson(i, "videoUrl", e.target.value)} placeholder={t(`${Cf}.youtubePlaceholder`)} className="w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm" />
+              <LessonVideoUpload
+                videoId={lesson.videoUrl}
+                lessonTitle={lesson.title}
+                onVideoId={(id) => {
+                  setLessons((l) => {
+                    const next = l.map((x, idx) => (idx === i ? { ...x, videoUrl: id } : x));
+                    lessonsRef.current = next;
+                    return next;
+                  });
+                }}
+                onVideoSaved={() => void saveNow()}
+              />
               <div>
                 <label className="block text-xs text-[var(--color-muted)]">{t(`${Cf}.lessonPdfOptional`)}</label>
                 {lesson.pdfUrl ? (

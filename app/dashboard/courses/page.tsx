@@ -48,7 +48,7 @@ export default async function DashboardCoursesPage() {
           {role === "TEACHER" ? t("dashboard.coursesRoutePage.titleTeacher") : t("dashboard.coursesRoutePage.titleStaff")}
         </h2>
         <Link
-          href="/dashboard/courses/new"
+          href="/dashboard/courses/new?fresh=1"
           className="rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)]"
         >
           {t("dashboard.coursesRoutePage.createCourse")}

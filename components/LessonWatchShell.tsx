@@ -1,34 +1,23 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { PlyrVideoPlayer } from "./plyr-video-player";
+import { VdoCipherPlayer } from "./VdoCipherPlayer";
 
 type Props = {
-  youtubeVideoId: string;
-  storageKey: string;
+  lessonId: string;
+  videoId: string;
   className?: string;
-  onEnded?: () => void;
-  copyrightOverlay?: ReactNode;
 };
 
-/** Lesson page wrapper around Plyr + optional copyright overlay. */
-export function LessonWatchShell({
-  youtubeVideoId,
-  storageKey,
-  className = "w-full",
-  onEnded,
-  copyrightOverlay,
-}: Props) {
+/** Lesson page wrapper around the VdoCipher secure player. */
+export function LessonWatchShell({ lessonId, videoId, className = "w-full" }: Props) {
   return (
-    <div className="lesson-video-shell relative mt-6 w-full min-w-0 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-black">
-      <PlyrVideoPlayer
-        key={`${storageKey}-${youtubeVideoId}`}
-        youtubeVideoId={youtubeVideoId}
-        storageKey={storageKey}
+    <div className="lesson-video-shell relative mt-6 w-full min-w-0 overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border)] bg-black">
+      <VdoCipherPlayer
+        key={`${lessonId}-${videoId}`}
+        lessonId={lessonId}
+        videoId={videoId}
         className={className}
-        onEnded={onEnded}
       />
-      {copyrightOverlay}
     </div>
   );
 }

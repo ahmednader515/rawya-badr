@@ -8,6 +8,7 @@ import { Footer } from "@/components/Footer";
 import { SessionProvider } from "@/components/SessionProvider";
 import { StoreSplashProvider } from "@/components/StoreSplashProvider";
 import { DeferredInspectGuard } from "@/components/DeferredInspectGuard";
+import { DeferredStudentDrmSentinel } from "@/components/DeferredStudentDrmSentinel";
 import { ForceLogoutGuard } from "@/components/ForceLogoutGuard";
 import { authOptions } from "@/lib/auth";
 import {
@@ -163,6 +164,7 @@ export default async function RootLayout({
           <SessionProvider>
             <StoreSplashProvider>
             <DeferredInspectGuard />
+            <DeferredStudentDrmSentinel />
             <ForceLogoutGuard />
             <Header
               platformName={platformName}

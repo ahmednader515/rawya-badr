@@ -3782,6 +3782,18 @@ export async function getCourseForEdit(courseId: string): Promise<{
   };
 }
 
+/** Latest unpublished course by creator — used to resume draft editing. */
+export async function getLatestDraftCourseForCreator(userId: string): Promise<Record<string, unknown> | null> {
+  const rows = await sql`
+    SELECT * FROM "Course"
+    WHERE created_by_id = ${userId} AND is_published = false
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `;
+  const row = rows[0] as Record<string, unknown> | undefined;
+  return row ? rowToCamel(row)! : null;
+}
+
 // ----- Quiz / Question / QuestionOption -----
 export async function getQuizById(quizId: string): Promise<{
   quiz: Record<string, unknown>;

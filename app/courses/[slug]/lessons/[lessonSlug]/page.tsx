@@ -7,12 +7,9 @@ import {
   getEnrollment,
   getAllowedLessonIdsForUserCourse,
   hasFullCourseAccessAsStudent,
-  ensureUserCopyrightCode,
-  getHomepageSettings,
 } from "@/lib/db";
 import { LessonWatchShell } from "@/components/LessonWatchShell";
-import { VideoCopyrightOverlay } from "@/components/video-copyright-overlay";
-import { getYouTubeVideoId } from "@/lib/youtube";
+import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 import { CourseOutlineSidebar } from "@/components/CourseOutlineSidebar";
 import { LessonHomeworkSection } from "./LessonHomeworkSection";
 import { LessonRatingSection } from "./LessonRatingSection";
@@ -104,7 +101,7 @@ export default async function LessonPage({ params }: Props) {
 
   const lessonObj = lesson as Record<string, unknown>;
   const videoUrl = (lessonObj.videoUrl ?? lessonObj.video_url) as string;
-  const youtubeVideoId = getYouTubeVideoId(videoUrl);
+  const vdocipherVideoId = normalizeVdoCipherVideoId(videoUrl);
   const courseAr =
     course.titleAr != null
       ? String(course.titleAr)
@@ -121,14 +118,6 @@ export default async function LessonPage({ params }: Props) {
         : null;
   const lessonEn = lessonObj.title != null ? String(lessonObj.title) : null;
   const lessonTitle = pickLocalizedText(locale, lessonAr, lessonEn) || lessonEn || lessonAr || "";
-
-  let studentCopyrightCode: string | null = null;
-  if (session?.user?.role === "STUDENT" && session.user.id) {
-    studentCopyrightCode = await ensureUserCopyrightCode(session.user.id);
-  }
-  const homepageSettings = await getHomepageSettings();
-  const copyrightOverlayStyle =
-    homepageSettings.copyrightOverlayStyle === "watermark" ? "watermark" : "floating";
 
   const lessonsAll = (course.lessons ?? []) as Array<Record<string, unknown> & { id: string; title?: string; titleAr?: string | null }>;
   const lessons =
@@ -159,20 +148,10 @@ export default async function LessonPage({ params }: Props) {
         <article className="min-w-0 lg:col-start-1 lg:row-start-1">
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">{lessonTitle}</h1>
 
-          {youtubeVideoId ? (
+          {vdocipherVideoId ? (
             <LessonWatchShell
-              youtubeVideoId={youtubeVideoId}
-              storageKey={String(lessonObj.id)}
-              copyrightOverlay={
-                studentCopyrightCode?.trim() ? (
-                  <VideoCopyrightOverlay
-                    code={studentCopyrightCode.trim()}
-                    label={t("video.copyrightCode", "Copyright code")}
-                    dir={locale === "ar" ? "rtl" : "ltr"}
-                    style={copyrightOverlayStyle}
-                  />
-                ) : null
-              }
+              lessonId={String(lessonObj.id)}
+              videoId={vdocipherVideoId}
             />
           ) : null}
 
