@@ -99,7 +99,8 @@ export function buildVdoCipherPlayerSrc(
   if (options?.loop) params.set("loop", "true");
   if (options?.controls) params.set("controls", options.controls);
   const playerId = options?.playerId?.trim();
-  if (playerId) params.set("playerId", playerId);
+  // VdoCipher v2 iframe uses `player`, not `playerId` (see official WP plugin).
+  if (playerId) params.set("player", playerId);
   return `https://player.vdocipher.com/v2/?${params.toString()}`;
 }
 
