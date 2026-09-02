@@ -44,6 +44,11 @@ export const arMessages: Messages = {
     switchToAr: "التبديل إلى العربية",
     switchToEn: "Switch to English",
   },
+  mobileBlocked: {
+    title: "لا يمكن الدخول حالياً",
+    message:
+      "المنصة غير متاحة على الهاتف المحمول في الوقت الحالي. يرجى الدخول من متصفح على جهاز كمبيوتر.",
+  },
   footer: {
     defaultTitle: "منصتي التعليمية",
     defaultTagline: "تعلم بأسلوب حديث ومنهجية واضحة",

@@ -44,6 +44,11 @@ export const enMessages: Messages = {
     switchToAr: "Switch to Arabic",
     switchToEn: "Switch to English",
   },
+  mobileBlocked: {
+    title: "No access for now",
+    message:
+      "This platform is not available on mobile phones at the moment. Please visit from a desktop or laptop browser.",
+  },
   footer: {
     defaultTitle: "My Learning Platform",
     defaultTagline: "Learn with a modern and clear method",
