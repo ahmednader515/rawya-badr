@@ -33,6 +33,7 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full" }: Pro
       const data = (await res.json()) as {
         otp?: string;
         playbackInfo?: string;
+        playerId?: string;
         status?: string;
         error?: string;
       };
@@ -49,7 +50,7 @@ export function VdoCipherPlayer({ lessonId, videoId, className = "w-full" }: Pro
         throw new Error(data.error || t("video.loadFailed", "Failed to load video"));
       }
 
-      setSrc(buildVdoCipherPlayerSrc(data.otp, data.playbackInfo));
+      setSrc(buildVdoCipherPlayerSrc(data.otp, data.playbackInfo, { playerId: data.playerId }));
       setPlayerKey((k) => k + 1);
       setState("ready");
     } catch (e) {

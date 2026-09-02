@@ -5,6 +5,7 @@ import {
   getVideoStatus,
   isDrmSentinelConfigured,
   DRM_SENTINEL_OTP_TTL_SECONDS,
+  getVdoCipherPlayerIdForClient,
 } from "@/lib/vdocipher";
 
 /** Public OTP for the hidden sentinel clip — no lesson content, guests + students only on the client. */
@@ -31,7 +32,12 @@ export async function POST() {
       ttl: DRM_SENTINEL_OTP_TTL_SECONDS,
     });
 
-    return NextResponse.json({ otp, playbackInfo, ttl: DRM_SENTINEL_OTP_TTL_SECONDS });
+    return NextResponse.json({
+      otp,
+      playbackInfo,
+      ttl: DRM_SENTINEL_OTP_TTL_SECONDS,
+      ...getVdoCipherPlayerIdForClient(),
+    });
   } catch (e) {
     console.error("VdoCipher DRM sentinel OTP error:", e);
     return NextResponse.json(

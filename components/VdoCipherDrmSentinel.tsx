@@ -76,6 +76,7 @@ export function VdoCipherDrmSentinel() {
       const data = (await res.json()) as {
         otp?: string;
         playbackInfo?: string;
+        playerId?: string;
         ttl?: number;
       };
       if (!data.otp || !data.playbackInfo) return;
@@ -85,6 +86,7 @@ export function VdoCipherDrmSentinel() {
         autoplay: true,
         loop: true,
         controls: "off",
+        playerId: data.playerId,
       });
 
       otpExpiresAtRef.current = now + ttlSeconds * 1000;

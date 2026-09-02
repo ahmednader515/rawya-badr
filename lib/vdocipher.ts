@@ -57,6 +57,21 @@ export function isDrmSentinelConfigured(): boolean {
   return isVdoCipherConfigured() && !!getDrmSentinelVideoId();
 }
 
+/** Custom player theme ID from the VdoCipher dashboard (Custom Player section). */
+export function getVdoCipherPlayerId(): string | null {
+  const id =
+    process.env.VDOCIPHER_PLAYER_ID?.trim() ||
+    process.env.vdocipher_player_id?.trim() ||
+    "";
+  return id || null;
+}
+
+/** Include in OTP API responses so the client can build the iframe URL. */
+export function getVdoCipherPlayerIdForClient(): { playerId?: string } {
+  const playerId = getVdoCipherPlayerId();
+  return playerId ? { playerId } : {};
+}
+
 /** OTP lifetime for the hidden DRM sentinel player (seconds). */
 export const DRM_SENTINEL_OTP_TTL_SECONDS = 300;
 
@@ -72,12 +87,19 @@ export function getDrmSentinelOtpRefreshIntervalMs(): number {
 export function buildVdoCipherPlayerSrc(
   otp: string,
   playbackInfo: string,
-  options?: { autoplay?: boolean; loop?: boolean; controls?: "on" | "off" | "native" },
+  options?: {
+    autoplay?: boolean;
+    loop?: boolean;
+    controls?: "on" | "off" | "native";
+    playerId?: string | null;
+  },
 ): string {
   const params = new URLSearchParams({ otp, playbackInfo });
   if (options?.autoplay) params.set("autoplay", "true");
   if (options?.loop) params.set("loop", "true");
   if (options?.controls) params.set("controls", options.controls);
+  const playerId = options?.playerId?.trim();
+  if (playerId) params.set("playerId", playerId);
   return `https://player.vdocipher.com/v2/?${params.toString()}`;
 }
 

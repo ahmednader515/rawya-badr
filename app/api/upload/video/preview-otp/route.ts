@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { generatePlaybackOtp, getVideoStatus, isVdoCipherConfigured } from "@/lib/vdocipher";
+import { generatePlaybackOtp, getVideoStatus, isVdoCipherConfigured, getVdoCipherPlayerIdForClient } from "@/lib/vdocipher";
 import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 
 function canUploadVideo(role: string | undefined): boolean {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { otp, playbackInfo } = await generatePlaybackOtp(videoId, { ttl: 300 });
-    return NextResponse.json({ otp, playbackInfo, videoId });
+    return NextResponse.json({ otp, playbackInfo, videoId, ...getVdoCipherPlayerIdForClient() });
   } catch (e) {
     console.error("VdoCipher preview OTP error:", e);
     return NextResponse.json(

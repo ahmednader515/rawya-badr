@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { buildVdoCipherPlayerSrc } from "@/lib/vdocipher";
 import { useT } from "./LocaleProvider";
 
 type Props = {
@@ -32,6 +33,7 @@ export function VdoCipherPreviewPlayer({ videoId, className = "w-full" }: Props)
       const data = (await res.json()) as {
         otp?: string;
         playbackInfo?: string;
+        playerId?: string;
         status?: string;
         error?: string;
       };
@@ -48,8 +50,9 @@ export function VdoCipherPreviewPlayer({ videoId, className = "w-full" }: Props)
         throw new Error(data.error || t("video.loadFailed", "Failed to load video"));
       }
 
-      const playerUrl = `https://player.vdocipher.com/v2/?otp=${encodeURIComponent(data.otp)}&playbackInfo=${encodeURIComponent(data.playbackInfo)}`;
-      setSrc(playerUrl);
+      setSrc(
+        buildVdoCipherPlayerSrc(data.otp, data.playbackInfo, { playerId: data.playerId }),
+      );
       setState("ready");
     } catch (e) {
       setState("error");

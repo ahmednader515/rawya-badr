@@ -6,7 +6,7 @@ import {
   getHomepageSettings,
 } from "@/lib/db";
 import { canUserAccessLessonVideo } from "@/lib/lesson-video-access";
-import { generatePlaybackOtp, getVideoStatus, isVdoCipherConfigured } from "@/lib/vdocipher";
+import { generatePlaybackOtp, getVideoStatus, isVdoCipherConfigured, getVdoCipherPlayerIdForClient } from "@/lib/vdocipher";
 import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 
 type RouteContext = { params: Promise<{ lessonId: string }> };
@@ -67,7 +67,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       ttl: 300,
     });
 
-    return NextResponse.json({ otp, playbackInfo, videoId });
+    return NextResponse.json({ otp, playbackInfo, videoId, ...getVdoCipherPlayerIdForClient() });
   } catch (e) {
     console.error("VdoCipher OTP error:", e);
     return NextResponse.json(
