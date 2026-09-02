@@ -1,6 +1,5 @@
 import { Cairo } from "next/font/google";
-import { certificatePositionsFromTemplate } from "@/lib/certificate-layout";
-import type { HomepageSetting } from "@/lib/types";
+import { certificatePositionsFromTemplate, type CertificateTemplate } from "@/lib/certificate-layout";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -11,7 +10,7 @@ const cairo = Cairo({
 type Props = {
   studentName: string;
   issuedAt: Date;
-  template: HomepageSetting;
+  template: CertificateTemplate;
 };
 
 function formatCertificateDate(date: Date): string {

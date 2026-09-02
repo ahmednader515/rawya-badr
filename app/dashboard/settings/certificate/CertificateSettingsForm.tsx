@@ -8,8 +8,8 @@ import { useT } from "@/components/LocaleProvider";
 import {
   CERTIFICATE_POSITION_DEFAULTS,
   parseCertificatePosition,
+  type CertificateTemplate,
 } from "@/lib/certificate-layout";
-import type { HomepageSetting } from "@/lib/types";
 
 type Initial = {
   certificateBackgroundUrl: string;
@@ -66,7 +66,7 @@ export function CertificateSettingsForm({ initial }: { initial: Initial }) {
   const [previewStudentName, setPreviewStudentName] = useState(() => t(`${F}.previewStudentName`));
   const [previewDate, setPreviewDate] = useState(todayInputValue);
 
-  const previewTemplate = useMemo<HomepageSetting>(
+  const previewTemplate = useMemo<CertificateTemplate>(
     () => ({
       certificateBackgroundUrl: form.certificateBackgroundUrl || null,
       certificateNameTop: form.certificateNameTop,
