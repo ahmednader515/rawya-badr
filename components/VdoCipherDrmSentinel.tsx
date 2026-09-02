@@ -28,7 +28,7 @@ export function VdoCipherDrmSentinel() {
   const activeRef = useRef(false);
   const currentSrcRef = useRef("");
   const otpExpiresAtRef = useRef(0);
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
 
   const clearRefreshTimeout = useCallback(() => {
     if (refreshTimeoutRef.current !== null) {
