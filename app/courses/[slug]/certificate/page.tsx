@@ -7,6 +7,12 @@ import {
   getCourseCertificateForUser,
   getHomepageSettings,
   getUserById,
+  getCourseRatingRequired,
+  getCourseRatingForUser,
+  isCourseCompletedByUser,
+  issueCourseCertificateIfEligible,
+  getEnrollment,
+  hasFullCourseAccessAsStudent,
 } from "@/lib/db";
 import { CertificateView } from "@/components/CertificateView";
 import { CertificateDownloadButton } from "@/components/CertificateDownloadButton";
@@ -33,6 +39,11 @@ function certificateSeg(course: { slug?: string | null; id: string }): string {
   return normalized ? encodeURIComponent(normalized) : course.id;
 }
 
+function rateHref(course: { slug?: string | null; id: string }): string {
+  const seg = course.slug?.trim() ? encodeURIComponent(course.slug.trim()) : course.id;
+  return `/courses/${seg}/rate`;
+}
+
 export default async function CourseCertificatePage({ params }: Props) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
@@ -43,10 +54,38 @@ export default async function CourseCertificatePage({ params }: Props) {
   if (!data?.course) notFound();
 
   const course = data.course;
-  const certificate = await getCourseCertificateForUser(session.user.id, course.id);
-  if (!certificate) notFound();
+  const userId = session.user.id;
+  const role = session.user.role;
+  const isStaff = role === "ADMIN" || role === "ASSISTANT_ADMIN";
 
-  const user = await getUserById(session.user.id);
+  // Non-staff must have course access
+  if (!isStaff) {
+    const isEnrolled = !!(await getEnrollment(userId, course.id));
+    const hasFullAccess = await hasFullCourseAccessAsStudent(userId, course.id);
+    if (!isEnrolled && !hasFullAccess) notFound();
+
+    // Must have completed the course
+    const completed = await isCourseCompletedByUser(userId, course.id);
+    if (!completed) redirect(courseHref(course));
+
+    // Check if rating is required
+    const ratingRequired = await getCourseRatingRequired(course.id);
+    const existingRating = await getCourseRatingForUser(userId, course.id);
+    if (ratingRequired && !existingRating) {
+      redirect(rateHref(course));
+    }
+
+    // Auto-issue certificate if not yet issued
+    await issueCourseCertificateIfEligible(userId, course.id);
+  }
+
+  const certificate = await getCourseCertificateForUser(userId, course.id);
+  if (!certificate) {
+    // If not issued yet (e.g. course not complete), redirect to course
+    redirect(courseHref(course));
+  }
+
+  const user = await getUserById(userId);
   const template = await getHomepageSettings();
 
   const certRow = certificate as typeof certificate & {

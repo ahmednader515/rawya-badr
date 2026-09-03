@@ -12,7 +12,6 @@ type Props = {
   nextItem: NavItem | null;
   prevHref: string | null;
   nextHref: string | null;
-  hasRatedCurrent: boolean;
   watchComplete: boolean;
   isStudent: boolean;
   isLastLesson?: boolean;
@@ -24,7 +23,6 @@ export function LessonNavigationBar({
   nextItem,
   prevHref,
   nextHref,
-  hasRatedCurrent,
   watchComplete,
   isStudent,
   isLastLesson = false,
@@ -33,7 +31,7 @@ export function LessonNavigationBar({
   const t = useT();
 
   const nextBlocked =
-    isStudent && !isLastLesson && nextItem != null && (!watchComplete || !hasRatedCurrent);
+    isStudent && !isLastLesson && nextItem != null && !watchComplete;
 
   return (
     <nav className="mt-8 flex w-full items-center justify-between gap-4 border-t border-[var(--color-border)] pt-6">
@@ -51,7 +49,7 @@ export function LessonNavigationBar({
         <span />
       )}
 
-      {isStudent && isLastLesson && hasRatedCurrent && certificateHref ? (
+      {isStudent && isLastLesson && watchComplete && certificateHref ? (
         <Link
           href={certificateHref}
           className="rounded-[var(--radius-btn)] bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
@@ -72,9 +70,7 @@ export function LessonNavigationBar({
               →
             </button>
             <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-              {!watchComplete
-                ? t("courses.finishVideoFirstHint", "Finish watching the lesson first.")
-                : t("courses.rateToUnlockNextHint", "You must rate this lesson before continuing.")}
+              {t("courses.finishVideoFirstHint", "Finish watching the lesson first.")}
             </p>
           </div>
         ) : nextHref ? (

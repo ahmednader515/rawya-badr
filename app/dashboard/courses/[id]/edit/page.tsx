@@ -67,6 +67,7 @@ export default async function EditCoursePage({ params }: Props) {
     imageUrl: String(c.imageUrl ?? c.image_url ?? ""),
     price: String(Number(c.price ?? 0)),
     isPublished: Boolean(c.isPublished ?? c.is_published ?? true),
+    ratingRequired: Boolean(c.ratingRequired ?? c.rating_required ?? false),
     maxQuizAttempts: typeof c.maxQuizAttempts === "number" ? c.maxQuizAttempts : typeof c.max_quiz_attempts === "number" ? c.max_quiz_attempts : null,
     categoryId: (c.categoryId ?? c.category_id ?? "") as string,
     lessons: data.lessons.map((l) => {

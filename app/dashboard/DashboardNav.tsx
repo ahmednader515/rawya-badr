@@ -100,6 +100,9 @@ export function DashboardNav({
           <NavLink href="/dashboard/reviews">
             {t("dashboardNav.studentReviews", "Student reviews")}
           </NavLink>
+          <NavLink href="/dashboard/course-ratings">
+            {t("dashboardNav.courseRatings", "Course ratings")}
+          </NavLink>
           <NavLink href="/dashboard/settings/copyright-overlay">
             {t("dashboardNav.copyrightSettings", "Copyright code settings")}
           </NavLink>

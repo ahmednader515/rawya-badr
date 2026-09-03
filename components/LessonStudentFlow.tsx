@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { LessonWatchShell } from "@/components/LessonWatchShell";
-import { LessonRatingSection } from "@/app/courses/[slug]/lessons/[lessonSlug]/LessonRatingSection";
 import { LessonNavigationBar } from "@/components/LessonNavigationBar";
 import { useT } from "@/components/LocaleProvider";
 
@@ -15,7 +13,6 @@ type Props = {
   lessonId: string;
   videoId: string | null;
   initialWatchComplete: boolean;
-  initialHasRated: boolean;
   isLastLesson: boolean;
   certificateHref: string | null;
   prevItem: NavItem | null;
@@ -29,7 +26,6 @@ export function LessonStudentFlow({
   lessonId,
   videoId,
   initialWatchComplete,
-  initialHasRated,
   isLastLesson,
   certificateHref,
   prevItem,
@@ -39,10 +35,8 @@ export function LessonStudentFlow({
   children,
 }: Props) {
   const t = useT();
-  const router = useRouter();
   const hasVideo = Boolean(videoId);
   const [watchComplete, setWatchComplete] = useState(initialWatchComplete || !hasVideo);
-  const [hasRated, setHasRated] = useState(initialHasRated);
   const [savingComplete, setSavingComplete] = useState(false);
 
   const persistComplete = useCallback(async () => {
@@ -52,7 +46,14 @@ export function LessonStudentFlow({
         method: "POST",
         credentials: "include",
       });
-      if (res.ok) setWatchComplete(true);
+      if (!res.ok) {
+        console.error("Failed to mark lesson complete:", res.status);
+        return;
+      }
+      const data = await res.json() as { completed?: boolean };
+      if (data.completed) setWatchComplete(true);
+    } catch (err) {
+      console.error("Error marking lesson complete:", err);
     } finally {
       setSavingComplete(false);
     }
@@ -68,11 +69,6 @@ export function LessonStudentFlow({
     void persistComplete();
   }, [persistComplete]);
 
-  const handleRated = useCallback(() => {
-    setHasRated(true);
-    router.refresh();
-  }, [router]);
-
   return (
     <>
       {hasVideo && videoId ? (
@@ -86,7 +82,7 @@ export function LessonStudentFlow({
       {!watchComplete && hasVideo ? (
         <div className="mt-6 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5">
           <p className="text-sm text-[var(--color-muted)]">
-            {t("courses.watchToRateHint", "Watch the full lesson video to unlock the rating step.")}
+            {t("courses.watchToUnlockNextHint", "Watch the full lesson video to continue to the next lesson.")}
           </p>
           {savingComplete ? (
             <p className="mt-2 text-xs text-[var(--color-primary)]">
@@ -96,14 +92,6 @@ export function LessonStudentFlow({
         </div>
       ) : null}
 
-      {watchComplete ? (
-        <LessonRatingSection
-          lessonId={lessonId}
-          mandatory
-          onRated={handleRated}
-        />
-      ) : null}
-
       {children}
 
       <LessonNavigationBar
@@ -111,11 +99,10 @@ export function LessonStudentFlow({
         nextItem={nextItem}
         prevHref={prevHref}
         nextHref={nextHref}
-        hasRatedCurrent={hasRated}
         watchComplete={watchComplete}
         isStudent
         isLastLesson={isLastLesson}
-        certificateHref={hasRated && isLastLesson ? certificateHref : null}
+        certificateHref={watchComplete && isLastLesson ? certificateHref : null}
       />
     </>
   );

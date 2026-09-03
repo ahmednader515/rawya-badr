@@ -32,6 +32,7 @@ type InitialData = {
   imageUrl: string;
   price: string;
   isPublished: boolean;
+  ratingRequired: boolean;
   maxQuizAttempts: number | null;
   categoryId: string;
   lessons: LessonRow[];
@@ -71,6 +72,7 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
     imageUrl: initialData.imageUrl,
     price: initialData.price,
     isPublished: initialData.isPublished,
+    ratingRequired: initialData.ratingRequired,
     maxQuizAttempts: initialData.maxQuizAttempts != null ? String(initialData.maxQuizAttempts) : "",
     categoryId: initialData.categoryId ?? "",
     categoryNameAr: "",
@@ -170,6 +172,7 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
         quizzes: quizzesRef.current,
         contentOrder: contentOrderRef.current,
         isPublished: formRef.current.isPublished,
+        ratingRequired: formRef.current.ratingRequired,
       }),
     [],
   );
@@ -353,6 +356,7 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
       imageUrl: form.imageUrl.trim() || undefined,
       price: form.price ? parseFloat(form.price) : 0,
       isPublished: form.isPublished,
+      ratingRequired: form.ratingRequired,
       maxQuizAttempts: form.maxQuizAttempts.trim() ? parseInt(form.maxQuizAttempts, 10) : null,
       ...(form.categoryNameAr.trim() || form.categoryNameEn.trim()
         ? { categoryNameAr: form.categoryNameAr.trim(), categoryNameEn: form.categoryNameEn.trim() }
@@ -542,10 +546,21 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
             <label className="block text-sm font-medium text-[var(--color-foreground)]">{t(`${Cf}.fullDescEnRequired`)}</label>
             <textarea value={form.descriptionEn} onChange={(e) => setForm((f) => ({ ...f, descriptionEn: e.target.value }))} rows={4} className="mt-1 w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2" required />
           </div>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm((f) => ({ ...f, isPublished: e.target.checked }))} />
-            <span className="text-sm text-[var(--color-foreground)]">{t(`${Cf}.publishedCourseLabel`)}</span>
-          </label>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm((f) => ({ ...f, isPublished: e.target.checked }))} />
+              <span className="text-sm text-[var(--color-foreground)]">{t(`${Cf}.publishedCourseLabel`)}</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={form.ratingRequired} onChange={(e) => setForm((f) => ({ ...f, ratingRequired: e.target.checked }))} />
+              <span className="text-sm text-[var(--color-foreground)]">{t(`${Cf}.ratingRequiredLabel`, "Rating required before certificate")}</span>
+            </label>
+            <p className="text-xs text-[var(--color-muted)]">
+              {form.ratingRequired
+                ? t(`${Cf}.ratingRequiredHintOn`, "Students must rate the course before accessing their certificate.")
+                : t(`${Cf}.ratingRequiredHintOff`, "Students can access their certificate without rating the course.")}
+            </p>
+          </div>
         </div>
       </section>
 

@@ -3419,6 +3419,33 @@ export async function deleteUserPlatformSubscriptionById(id: string): Promise<vo
   await sql`DELETE FROM "UserPlatformSubscription" WHERE id = ${id}`;
 }
 
+// ─── CourseRating schema (declared early so courseRatingSelectSql can reference it) ──
+
+let courseRatingSchemaAvailable = true;
+
+async function ensureCourseRatingSchema(): Promise<void> {
+  return ensureOnce("ensureCourseRatingSchema", async () => {
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS "CourseRating" (
+          id TEXT PRIMARY KEY,
+          course_id TEXT NOT NULL REFERENCES "Course"(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+          stars INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+          comment TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT course_rating_unique_user UNIQUE (course_id, user_id)
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS "CourseRating_course_id_idx" ON "CourseRating"(course_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS "CourseRating_user_id_idx" ON "CourseRating"(user_id)`;
+    } catch {
+      courseRatingSchemaAvailable = false;
+    }
+  });
+}
+
 let lessonRatingsSchemaAvailable = true;
 
 async function ensureLessonRatingsSchema(): Promise<void> {
@@ -3452,27 +3479,27 @@ async function ensureLessonRatingsSchema(): Promise<void> {
 }
 
 function courseRatingSelectSql() {
-  if (!lessonRatingsSchemaAvailable) {
+  // Pull rating data from the CourseRating table (one rating per student per course).
+  if (!courseRatingSchemaAvailable) {
     return sql`NULL::numeric AS course_rating, 0::int AS course_rating_count`;
   }
+  // Use to_regclass to safely skip the subquery if the table doesn't exist yet
   return sql`
-    (
-      SELECT ROUND(AVG(lr.rating)::numeric, 2)
-      FROM "LessonRating" lr
-      JOIN "Lesson" l ON l.id = lr.lesson_id
-      WHERE l.course_id = c.id
-    ) AS course_rating,
-    (
+    CASE WHEN to_regclass('"CourseRating"') IS NOT NULL THEN (
+      SELECT ROUND(AVG(cr.stars)::numeric, 2)
+      FROM "CourseRating" cr
+      WHERE cr.course_id = c.id
+    ) END AS course_rating,
+    CASE WHEN to_regclass('"CourseRating"') IS NOT NULL THEN (
       SELECT COUNT(*)::int
-      FROM "LessonRating" lr
-      JOIN "Lesson" l ON l.id = lr.lesson_id
-      WHERE l.course_id = c.id
-    ) AS course_rating_count
+      FROM "CourseRating" cr
+      WHERE cr.course_id = c.id
+    ) ELSE 0 END AS course_rating_count
   `;
 }
 
 export async function getCourseBySlug(slug: string): Promise<(Course & { category?: Category }) | null> {
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
@@ -3491,7 +3518,7 @@ export async function getCourseBySlug(slug: string): Promise<(Course & { categor
 }
 
 export async function getCourseById(id: string): Promise<Course | null> {
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}
     FROM "Course" c
@@ -3505,7 +3532,7 @@ export async function getCourseBySlugOrId(slugOrId: string): Promise<Course | nu
   if (/^c[a-z0-9]{24}$/i.test(slugOrId)) {
     return getCourseById(slugOrId);
   }
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}
     FROM "Course" c
@@ -3516,6 +3543,7 @@ export async function getCourseBySlugOrId(slugOrId: string): Promise<Course | nu
 }
 
 async function fetchCoursesPublishedWithCategory(): Promise<(Course & { category?: Category })[]> {
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
@@ -3534,6 +3562,7 @@ async function fetchCoursesPublishedWithCategory(): Promise<(Course & { category
 }
 
 async function fetchCoursesPublishedPlain(): Promise<(Course & { category?: Category })[]> {
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}
     FROM "Course" c
@@ -3545,13 +3574,13 @@ async function fetchCoursesPublishedPlain(): Promise<(Course & { category?: Cate
 
 const getCoursesPublishedWithCategoryCached = unstable_cache(
   fetchCoursesPublishedWithCategory,
-  ["courses-published-with-cat-v1"],
+  ["courses-published-with-cat-v2"],
   { revalidate: 60, tags: [HOMEPAGE_CONTENT_TAG] },
 );
 
 const getCoursesPublishedPlainCached = unstable_cache(
   fetchCoursesPublishedPlain,
-  ["courses-published-plain-v1"],
+  ["courses-published-plain-v2"],
   { revalidate: 60, tags: [HOMEPAGE_CONTENT_TAG] },
 );
 
@@ -3588,7 +3617,7 @@ export async function getCoursesWithCounts(): Promise<
     }
   >
 > {
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*,
       ${courseRatingSelectSql()},
@@ -3632,7 +3661,7 @@ export async function getCoursesWithCountsForCreator(
     }
   >
 > {
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*,
       ${courseRatingSelectSql()},
@@ -3666,7 +3695,7 @@ export async function getCoursesWithCountsForCreator(
 }
 
 export async function getCoursesAll(): Promise<(Course & { category?: Category })[]> {
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
@@ -3772,6 +3801,7 @@ export async function updateCourse(
     max_quiz_attempts?: number | null;
     category_id?: string | null;
     accepts_homework?: boolean;
+    rating_required?: boolean;
   }
 ): Promise<void> {
   await ensureCourseBilingualColumns();
@@ -3791,6 +3821,14 @@ export async function updateCourse(
       await sql`UPDATE "Course" SET accepts_homework = ${data.accepts_homework}, updated_at = NOW() WHERE id = ${id}`;
     } catch {
       /* العمود قد يكون غير موجود قبل تشغيل scripts/add-homework.sql */
+    }
+  }
+  if (data.rating_required !== undefined) {
+    try {
+      await ensureCourseRatingRequiredColumn();
+      await sql`UPDATE "Course" SET rating_required = ${data.rating_required}, updated_at = NOW() WHERE id = ${id}`;
+    } catch {
+      /* DDL unavailable */
     }
   }
   revalidateHomepageCaches();
@@ -4298,7 +4336,7 @@ export async function hasPartialCourseAccess(userId: string, courseId: string): 
 /** دورات الطالب: المسجّل فيها + الدورات المتاحة عبر أكواد (حصص/اختبارات محددة) + كل الدورات المدفوعة المنشورة عند اشتراك منصة نشط */
 export async function getAccessibleCoursesForUser(userId: string): Promise<(Course & { category?: Category })[]> {
   await ensurePlatformSubscriptionSchema();
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
@@ -4554,8 +4592,180 @@ function generateCertificateCode(): string {
 export async function isCourseCompletedByUser(userId: string, courseId: string): Promise<boolean> {
   const lessons = await getLessonsByCourseId(courseId);
   if (lessons.length === 0) return false;
-  const rated = new Set(await getUserRatedLessonIdsInCourse(userId, courseId));
-  return lessons.every((l) => rated.has(l.id));
+  const lessonsWithVideo = lessons.filter((l) => {
+    const vid = (l as { video_url?: string | null }).video_url;
+    return vid && vid.trim();
+  });
+  if (lessonsWithVideo.length === 0) {
+    // No video lessons — complete when all lessons exist (no video to watch)
+    return true;
+  }
+  const completed = new Set(await getUserCompletedLessonIdsInCourse(userId, courseId));
+  return lessonsWithVideo.every((l) => completed.has(l.id));
+}
+
+// ─── CourseRating ─────────────────────────────────────────────────────────────
+
+export type CourseRatingRecord = {
+  id: string;
+  course_id: string;
+  user_id: string;
+  stars: number;
+  comment: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export async function upsertCourseRating(params: {
+  course_id: string;
+  user_id: string;
+  stars: number;
+  comment?: string | null;
+}): Promise<void> {
+  await ensureCourseRatingSchema();
+  if (!courseRatingSchemaAvailable) return;
+  const id = generateId();
+  await sql`
+    INSERT INTO "CourseRating" (id, course_id, user_id, stars, comment, created_at, updated_at)
+    VALUES (${id}, ${params.course_id}, ${params.user_id}, ${params.stars}, ${params.comment ?? null}, NOW(), NOW())
+    ON CONFLICT (course_id, user_id)
+    DO UPDATE SET stars = EXCLUDED.stars, comment = EXCLUDED.comment, updated_at = NOW()
+  `;
+  revalidateHomepageCaches();
+}
+
+export async function getCourseRatingForUser(
+  userId: string,
+  courseId: string,
+): Promise<CourseRatingRecord | null> {
+  await ensureCourseRatingSchema();
+  if (!courseRatingSchemaAvailable) return null;
+  const rows = await sql`
+    SELECT * FROM "CourseRating"
+    WHERE course_id = ${courseId} AND user_id = ${userId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return rowToCamel(row as Record<string, unknown>) as unknown as CourseRatingRecord;
+}
+
+export type CourseRatingAdminRow = {
+  id: string;
+  courseId: string;
+  courseTitle: string | null;
+  courseSlug: string | null;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  stars: number;
+  comment: string | null;
+  createdAt: Date;
+};
+
+export async function getAllCourseRatings(opts?: {
+  courseId?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ rows: CourseRatingAdminRow[]; total: number }> {
+  await ensureCourseRatingSchema();
+  if (!courseRatingSchemaAvailable) return { rows: [], total: 0 };
+
+  const courseFilter = opts?.courseId ? opts.courseId : null;
+  const lim = opts?.limit ?? 50;
+  const off = opts?.offset ?? 0;
+
+  const countRows = courseFilter
+    ? await sql`SELECT COUNT(*)::int AS total FROM "CourseRating" WHERE course_id = ${courseFilter}`
+    : await sql`SELECT COUNT(*)::int AS total FROM "CourseRating"`;
+  const total = Number((countRows[0] as { total?: number } | undefined)?.total ?? 0);
+
+  const rows = courseFilter
+    ? await sql`
+        SELECT cr.id, cr.course_id, cr.user_id, cr.stars, cr.comment, cr.created_at,
+               c.title AS course_title, c.slug AS course_slug,
+               u.name AS user_name, u.email AS user_email
+        FROM "CourseRating" cr
+        LEFT JOIN "Course" c ON c.id = cr.course_id
+        LEFT JOIN "User" u ON u.id = cr.user_id
+        WHERE cr.course_id = ${courseFilter}
+        ORDER BY cr.created_at DESC
+        LIMIT ${lim} OFFSET ${off}
+      `
+    : await sql`
+        SELECT cr.id, cr.course_id, cr.user_id, cr.stars, cr.comment, cr.created_at,
+               c.title AS course_title, c.slug AS course_slug,
+               u.name AS user_name, u.email AS user_email
+        FROM "CourseRating" cr
+        LEFT JOIN "Course" c ON c.id = cr.course_id
+        LEFT JOIN "User" u ON u.id = cr.user_id
+        ORDER BY cr.created_at DESC
+        LIMIT ${lim} OFFSET ${off}
+      `;
+
+  return {
+    total,
+    rows: (rows as Record<string, unknown>[]).map((r) => ({
+      id: String(r.id),
+      courseId: String(r.course_id),
+      courseTitle: r.course_title != null ? String(r.course_title) : null,
+      courseSlug: r.course_slug != null ? String(r.course_slug) : null,
+      userId: String(r.user_id),
+      userName: r.user_name != null ? String(r.user_name) : null,
+      userEmail: r.user_email != null ? String(r.user_email) : null,
+      stars: Number(r.stars),
+      comment: r.comment != null ? String(r.comment) : null,
+      createdAt: r.created_at instanceof Date ? r.created_at : new Date(String(r.created_at)),
+    })),
+  };
+}
+
+export async function deleteCourseRating(ratingId: string): Promise<void> {
+  await ensureCourseRatingSchema();
+  if (!courseRatingSchemaAvailable) return;
+  await sql`DELETE FROM "CourseRating" WHERE id = ${ratingId}`;
+}
+
+export async function getCourseRatingSummary(courseId: string): Promise<{
+  averageStars: number | null;
+  ratingCount: number;
+}> {
+  await ensureCourseRatingSchema();
+  if (!courseRatingSchemaAvailable) return { averageStars: null, ratingCount: 0 };
+  const rows = await sql`
+    SELECT AVG(stars)::FLOAT AS avg_stars, COUNT(*)::INT AS rating_count
+    FROM "CourseRating"
+    WHERE course_id = ${courseId}
+  `;
+  const row = rows[0] as { avg_stars?: number | null; rating_count?: number } | undefined;
+  if (!row) return { averageStars: null, ratingCount: 0 };
+  const avg = row.avg_stars;
+  return {
+    averageStars: avg != null && Number.isFinite(avg) ? Math.round(avg * 10) / 10 : null,
+    ratingCount: Number(row.rating_count ?? 0),
+  };
+}
+
+// ─── course_rating_required column ────────────────────────────────────────────
+
+async function ensureCourseRatingRequiredColumn(): Promise<void> {
+  return ensureOnce("ensureCourseRatingRequiredColumn", async () => {
+    try {
+      await sql`ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS rating_required BOOLEAN NOT NULL DEFAULT FALSE`;
+    } catch {
+      /* DDL unavailable */
+    }
+  });
+}
+
+export async function getCourseRatingRequired(courseId: string): Promise<boolean> {
+  await ensureCourseRatingRequiredColumn();
+  try {
+    const rows = await sql`SELECT rating_required FROM "Course" WHERE id = ${courseId} LIMIT 1`;
+    return Boolean((rows[0] as { rating_required?: boolean } | undefined)?.rating_required);
+  } catch {
+    return false;
+  }
 }
 
 export async function getCourseCertificateForUser(
@@ -5290,7 +5500,7 @@ export async function getEnrollmentsWithCourseByUserId(userId: string): Promise<
 
 /** دورات الطالب المسجّل فيها — بنفس شكل الكورسات في الصفحة الرئيسية (للعرض كبطاقات) */
 export async function getEnrolledCoursesForUser(userId: string): Promise<(Course & { category?: Category })[]> {
-  await ensureLessonRatingsSchema();
+  await ensureCourseRatingSchema();
   const rows = await sql`
     SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Enrollment" e

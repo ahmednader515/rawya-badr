@@ -7,13 +7,11 @@ import {
   getEnrollment,
   getAllowedLessonIdsForUserCourse,
   hasFullCourseAccessAsStudent,
-  getLessonRatingSummary,
   isLessonWatchComplete,
 } from "@/lib/db";
 import { LessonWatchShell } from "@/components/LessonWatchShell";
 import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 import { CourseOutlineSidebar } from "@/components/CourseOutlineSidebar";
-import { LessonRatingSection } from "./LessonRatingSection";
 import { LessonNavigationBar } from "@/components/LessonNavigationBar";
 import { LessonStudentFlow } from "@/components/LessonStudentFlow";
 import { getUnlockedLessonIdsForStudent, sortLessonsByOrder } from "@/lib/lesson-sequence";
@@ -133,12 +131,6 @@ export default async function LessonPage({ params }: Props) {
     notFound();
   }
 
-  const ratingSummary =
-    isStudent && session?.user?.id
-      ? await getLessonRatingSummary(lessonIdStr, session.user.id)
-      : null;
-  const hasRatedCurrent = (ratingSummary?.userRating ?? 0) >= 1;
-
   const watchComplete =
     isStudent && session?.user?.id
       ? await isLessonWatchComplete(session.user.id, lessonIdStr)
@@ -207,7 +199,6 @@ export default async function LessonPage({ params }: Props) {
               lessonId={lessonIdStr}
               videoId={vdocipherVideoId}
               initialWatchComplete={watchComplete}
-              initialHasRated={hasRatedCurrent}
               isLastLesson={isLastLesson}
               certificateHref={certificateHref}
               prevItem={prevItem}
@@ -292,7 +283,6 @@ export default async function LessonPage({ params }: Props) {
                       : quizHref(course, nextItem.id)
                     : null
                 }
-                hasRatedCurrent={hasRatedCurrent}
                 watchComplete
                 isStudent={false}
               />

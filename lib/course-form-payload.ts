@@ -33,6 +33,7 @@ export type CourseFormCoreState = {
   }>;
   contentOrder: Array<{ type: "lesson"; index: number } | { type: "quiz"; index: number }>;
   isPublished?: boolean;
+  ratingRequired?: boolean;
 };
 
 export function buildCourseAutosavePayload(state: CourseFormCoreState): CourseAutosaveBody {
@@ -47,6 +48,7 @@ export function buildCourseAutosavePayload(state: CourseFormCoreState): CourseAu
     price: state.form.price ? parseFloat(state.form.price) : 0,
     maxQuizAttempts: state.form.maxQuizAttempts.trim() ? parseInt(state.form.maxQuizAttempts, 10) : null,
     isPublished: state.isPublished,
+    ratingRequired: state.ratingRequired,
     ...(state.form.categoryNameAr.trim() || state.form.categoryNameEn.trim()
       ? { categoryNameAr: state.form.categoryNameAr.trim(), categoryNameEn: state.form.categoryNameEn.trim() }
       : state.form.categoryId

@@ -1,4 +1,4 @@
-import { getUserRatedLessonIdsInCourse } from "@/lib/db";
+import { getUserCompletedLessonIdsInCourse } from "@/lib/db";
 
 export type SequenceLesson = {
   id: string;
@@ -35,7 +35,7 @@ export async function getUnlockedLessonIdsForStudent(params: {
   const ordered = sortLessonsByOrder(filterLessonsForAccess(courseLessons, allowedLessonIds));
   if (isStaff) return new Set(ordered.map((l) => l.id));
 
-  const ratedSet = new Set(await getUserRatedLessonIdsInCourse(userId, courseId));
+  const completedSet = new Set(await getUserCompletedLessonIdsInCourse(userId, courseId));
   const unlocked = new Set<string>();
 
   for (let i = 0; i < ordered.length; i++) {
@@ -43,8 +43,8 @@ export async function getUnlockedLessonIdsForStudent(params: {
       unlocked.add(ordered[i].id);
       continue;
     }
-    const allPriorRated = ordered.slice(0, i).every((l) => ratedSet.has(l.id));
-    if (allPriorRated) unlocked.add(ordered[i].id);
+    const allPriorCompleted = ordered.slice(0, i).every((l) => completedSet.has(l.id));
+    if (allPriorCompleted) unlocked.add(ordered[i].id);
     else break;
   }
 
@@ -70,11 +70,11 @@ export async function isLessonSequentiallyUnlocked(params: {
   const idx = ordered.findIndex((l) => l.id === params.lessonId);
   if (idx <= 0) return { unlocked: false, blockedByLessonId: null };
 
-  const ratedSet = new Set(
-    await getUserRatedLessonIdsInCourse(params.userId, params.courseId),
+  const completedSet = new Set(
+    await getUserCompletedLessonIdsInCourse(params.userId, params.courseId),
   );
   for (let i = 0; i < idx; i++) {
-    if (!ratedSet.has(ordered[i].id)) {
+    if (!completedSet.has(ordered[i].id)) {
       return { unlocked: false, blockedByLessonId: ordered[i].id };
     }
   }

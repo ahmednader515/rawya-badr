@@ -54,6 +54,7 @@ export async function PUT(
     categoryNameAr?: string;
     categoryNameEn?: string;
     acceptsHomework?: boolean;
+    ratingRequired?: boolean;
     lessons?: LessonInput[];
     quizzes?: QuizInput[];
     contentOrder?: ContentOrderEntry[];
@@ -135,6 +136,7 @@ export async function PUT(
     max_quiz_attempts: body.maxQuizAttempts ?? null,
     ...(categoryId !== undefined && { category_id: categoryId }),
     ...(body.acceptsHomework !== undefined && { accepts_homework: body.acceptsHomework }),
+    ...(body.ratingRequired !== undefined && { rating_required: body.ratingRequired }),
   });
 
   await deleteLessonsByCourseId(id);

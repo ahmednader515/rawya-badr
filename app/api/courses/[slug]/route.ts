@@ -14,7 +14,7 @@ export async function GET(
     const course = { ...data.course, lessons: data.lessons, quizzes: data.quizzes };
     return NextResponse.json(course);
   } catch (error) {
-    console.error("API course by slug:", error);
+    console.error("API course:", error);
     return NextResponse.json(
       { error: "فشل جلب الدورة" },
       { status: 500 }

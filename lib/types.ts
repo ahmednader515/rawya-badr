@@ -329,6 +329,7 @@ export interface Course {
   category_id: string | null;
   created_by_id: string | null;
   accepts_homework?: boolean;
+  rating_required?: boolean;
   /** متوسط تقييم الكورس المحسوب من كل تقييمات دروسه */
   course_rating?: number | null;
   /** عدد تقييمات الدروس المستخدمة في متوسط الكورس */
