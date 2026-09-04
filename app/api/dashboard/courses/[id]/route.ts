@@ -55,6 +55,7 @@ export async function PUT(
     categoryNameEn?: string;
     acceptsHomework?: boolean;
     ratingRequired?: boolean;
+    accessDays?: number | null | string;
     lessons?: LessonInput[];
     quizzes?: QuizInput[];
     contentOrder?: ContentOrderEntry[];
@@ -137,6 +138,15 @@ export async function PUT(
     ...(categoryId !== undefined && { category_id: categoryId }),
     ...(body.acceptsHomework !== undefined && { accepts_homework: body.acceptsHomework }),
     ...(body.ratingRequired !== undefined && { rating_required: body.ratingRequired }),
+    ...(body.accessDays !== undefined && {
+      access_days:
+        body.accessDays === null || body.accessDays === ""
+          ? null
+          : (() => {
+              const n = Number(body.accessDays);
+              return Number.isFinite(n) && n >= 1 ? Math.min(3650, Math.floor(n)) : null;
+            })(),
+    }),
   });
 
   await deleteLessonsByCourseId(id);
@@ -246,6 +256,13 @@ export async function GET(
     price: Number(c.price ?? 0),
     isPublished: c.isPublished ?? c.is_published ?? true,
     maxQuizAttempts: c.maxQuizAttempts ?? c.max_quiz_attempts ?? null,
+    ratingRequired: Boolean((c as { ratingRequired?: boolean; rating_required?: boolean }).ratingRequired ?? (c as { rating_required?: boolean }).rating_required ?? false),
+    accessDays:
+      typeof (c as { accessDays?: number | null }).accessDays === "number"
+        ? (c as { accessDays: number }).accessDays
+        : typeof (c as { access_days?: number | null }).access_days === "number"
+          ? (c as { access_days: number }).access_days
+          : null,
     categoryId: (c as { categoryId?: string | null }).categoryId ?? null,
     lessons: data.lessons.map((l) => ({
       title: l.title,

@@ -3293,7 +3293,7 @@ export async function userHasActivePlatformSubscriptionForPaidCourse(userId: str
 
 /** تسجيل في الدورة أو اشتراك منصة نشط على دورة مدفوعة منشورة */
 export async function hasFullCourseAccessAsStudent(userId: string, courseId: string): Promise<boolean> {
-  const en = await getEnrollment(userId, courseId);
+  const en = await getActiveEnrollment(userId, courseId);
   if (en) return true;
   return userHasActivePlatformSubscriptionForPaidCourse(userId, courseId);
 }
@@ -3618,6 +3618,7 @@ export async function getCoursesWithCounts(): Promise<
   >
 > {
   await ensureCourseRatingSchema();
+  await ensureCourseAccessDaysColumn();
   const rows = await sql`
     SELECT c.*,
       ${courseRatingSelectSql()},
@@ -3662,6 +3663,7 @@ export async function getCoursesWithCountsForCreator(
   >
 > {
   await ensureCourseRatingSchema();
+  await ensureCourseAccessDaysColumn();
   const rows = await sql`
     SELECT c.*,
       ${courseRatingSelectSql()},
@@ -3743,8 +3745,10 @@ export async function createCourse(data: {
   max_quiz_attempts?: number | null;
   category_id?: string | null;
   accepts_homework?: boolean;
+  access_days?: number | null;
 }): Promise<Course> {
   await ensureCourseBilingualColumns();
+  await ensureCourseAccessDaysColumn();
   const id = generateId();
   const catId = data.category_id ?? null;
   const acceptsHomework = data.accepts_homework ?? false;
@@ -3780,8 +3784,16 @@ export async function createCourse(data: {
     }
   }
   const row = rows?.[0] as Record<string, unknown> | undefined;
-  const c = row ? rowToCamel(row) as Course : null;
+  const c = row ? (rowToCamel(row) as Course) : null;
   if (!c) throw new Error("فشل إنشاء الدورة");
+  if (data.access_days !== undefined) {
+    try {
+      await sql`UPDATE "Course" SET access_days = ${data.access_days}, updated_at = NOW() WHERE id = ${id}`;
+      (c as { access_days?: number | null }).access_days = data.access_days;
+    } catch {
+      /* column may be unavailable */
+    }
+  }
   revalidateHomepageCaches();
   return c;
 }
@@ -3802,9 +3814,11 @@ export async function updateCourse(
     category_id?: string | null;
     accepts_homework?: boolean;
     rating_required?: boolean;
+    access_days?: number | null;
   }
 ): Promise<void> {
   await ensureCourseBilingualColumns();
+  await ensureCourseAccessDaysColumn();
   if (data.title !== undefined) await sql`UPDATE "Course" SET title = ${data.title}, updated_at = NOW() WHERE id = ${id}`;
   if (data.title_ar !== undefined) await sql`UPDATE "Course" SET title_ar = ${data.title_ar}, updated_at = NOW() WHERE id = ${id}`;
   if (data.description !== undefined) await sql`UPDATE "Course" SET description = ${data.description}, updated_at = NOW() WHERE id = ${id}`;
@@ -3831,6 +3845,14 @@ export async function updateCourse(
       /* DDL unavailable */
     }
   }
+  if (data.access_days !== undefined) {
+    try {
+      await ensureCourseAccessDaysColumn();
+      await sql`UPDATE "Course" SET access_days = ${data.access_days}, updated_at = NOW() WHERE id = ${id}`;
+    } catch {
+      /* DDL unavailable */
+    }
+  }
   revalidateHomepageCaches();
 }
 
@@ -3843,6 +3865,17 @@ export async function deleteCourse(id: string): Promise<void> {
 export async function getLessonsByCourseId(courseId: string): Promise<Lesson[]> {
   const rows = await sql`SELECT * FROM "Lesson" WHERE course_id = ${courseId} ORDER BY "order" ASC`;
   return rows as Lesson[];
+}
+
+export async function getQuizzesByCourseId(courseId: string): Promise<
+  Array<{ id: string; order?: number | null; title?: string }>
+> {
+  const rows = await sql`SELECT id, title, "order" FROM "Quiz" WHERE course_id = ${courseId} ORDER BY "order" ASC`;
+  return (rows as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id),
+    title: r.title != null ? String(r.title) : undefined,
+    order: typeof r.order === "number" ? r.order : null,
+  }));
 }
 
 export async function getLessonBySlug(courseId: string, lessonSlug: string): Promise<Lesson | null> {
@@ -4111,11 +4144,78 @@ export async function deleteQuizzesByCourseId(courseId: string): Promise<void> {
 }
 
 // ----- Enrollment -----
+
+async function ensureCourseAccessDaysColumn(): Promise<void> {
+  return ensureOnce("ensureCourseAccessDaysColumn", async () => {
+    try {
+      await sql`ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS access_days INTEGER`;
+    } catch {
+      /* DDL unavailable */
+    }
+  });
+}
+
+/** Parse access_days: positive integer, or null for unlimited. */
+export function parseAccessDays(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(String(value).trim());
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(3650, Math.floor(n)); // max ~10 years
+}
+
+export function getEnrollmentExpiresAt(
+  enrolledAt: Date | string | null | undefined,
+  accessDays: number | null | undefined,
+): Date | null {
+  if (accessDays == null || accessDays < 1 || !enrolledAt) return null;
+  const start = enrolledAt instanceof Date ? enrolledAt : new Date(String(enrolledAt));
+  if (Number.isNaN(start.getTime())) return null;
+  const expires = new Date(start.getTime());
+  expires.setDate(expires.getDate() + accessDays);
+  return expires;
+}
+
+export function isEnrollmentExpired(
+  enrolledAt: Date | string | null | undefined,
+  accessDays: number | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  const expires = getEnrollmentExpiresAt(enrolledAt, accessDays);
+  if (!expires) return false;
+  return now.getTime() >= expires.getTime();
+}
+
+export async function getCourseAccessDays(courseId: string): Promise<number | null> {
+  await ensureCourseAccessDaysColumn();
+  try {
+    const rows = await sql`SELECT access_days FROM "Course" WHERE id = ${courseId} LIMIT 1`;
+    const raw = (rows[0] as { access_days?: number | null } | undefined)?.access_days;
+    return parseAccessDays(raw);
+  } catch {
+    return null;
+  }
+}
+
 export async function getEnrollment(userId: string, courseId: string): Promise<Enrollment | null> {
   const rows = await sql`
     SELECT * FROM "Enrollment" WHERE user_id = ${userId} AND course_id = ${courseId} LIMIT 1
   `;
   return (rows[0] as Enrollment) ?? null;
+}
+
+/** Enrollment that still has access (respects course access_days). */
+export async function getActiveEnrollment(
+  userId: string,
+  courseId: string,
+): Promise<(Enrollment & { expiresAt?: Date | null }) | null> {
+  const en = await getEnrollment(userId, courseId);
+  if (!en) return null;
+  const accessDays = await getCourseAccessDays(courseId);
+  const enrolledAt = (en as { enrolled_at?: Date; enrolledAt?: Date }).enrolled_at
+    ?? (en as { enrolledAt?: Date }).enrolledAt;
+  if (isEnrollmentExpired(enrolledAt, accessDays)) return null;
+  const expiresAt = getEnrollmentExpiresAt(enrolledAt, accessDays);
+  return { ...en, expiresAt };
 }
 
 export async function createEnrollment(userId: string, courseId: string): Promise<Enrollment> {
@@ -4127,6 +4227,19 @@ export async function createEnrollment(userId: string, courseId: string): Promis
   const rows = await sql`SELECT * FROM "Enrollment" WHERE id = ${id} LIMIT 1`;
   const e = rows[0] as Enrollment;
   if (!e) throw new Error("فشل إنشاء التسجيل");
+  return e;
+}
+
+/** Reset enrolled_at to renew access after expiry (re-purchase). */
+export async function renewEnrollment(userId: string, courseId: string): Promise<Enrollment> {
+  const rows = await sql`
+    UPDATE "Enrollment"
+    SET enrolled_at = NOW()
+    WHERE user_id = ${userId} AND course_id = ${courseId}
+    RETURNING *
+  `;
+  const e = rows[0] as Enrollment | undefined;
+  if (!e) return createEnrollment(userId, courseId);
   return e;
 }
 
@@ -4559,6 +4672,26 @@ export async function getUserCompletedLessonIdsInCourse(
     WHERE user_id = ${userId} AND course_id = ${courseId}
   `;
   return (rows as { lesson_id: string }[]).map((r) => r.lesson_id);
+}
+
+/** Quizzes the student has submitted at least once (total_questions > 0). */
+export async function getUserCompletedQuizIdsInCourse(
+  userId: string,
+  courseId: string,
+): Promise<string[]> {
+  try {
+    const rows = await sql`
+      SELECT DISTINCT qa.quiz_id
+      FROM "QuizAttempt" qa
+      JOIN "Quiz" q ON q.id = qa.quiz_id
+      WHERE qa.user_id = ${userId}
+        AND q.course_id = ${courseId}
+        AND qa.total_questions > 0
+    `;
+    return (rows as { quiz_id: string }[]).map((r) => r.quiz_id);
+  } catch {
+    return [];
+  }
 }
 
 let courseCertificatesSchemaAvailable = true;
@@ -5501,19 +5634,25 @@ export async function getEnrollmentsWithCourseByUserId(userId: string): Promise<
 /** دورات الطالب المسجّل فيها — بنفس شكل الكورسات في الصفحة الرئيسية (للعرض كبطاقات) */
 export async function getEnrolledCoursesForUser(userId: string): Promise<(Course & { category?: Category })[]> {
   await ensureCourseRatingSchema();
+  await ensureCourseAccessDaysColumn();
   const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
+    SELECT c.*, e.enrolled_at as enrollment_enrolled_at, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Enrollment" e
     JOIN "Course" c ON c.id = e.course_id
     LEFT JOIN "Category" cat ON c.category_id = cat.id
     WHERE e.user_id = ${userId}
     ORDER BY e.enrolled_at DESC
   `;
-  return (rows as Record<string, unknown>[]).map((r) => {
+  return (rows as Record<string, unknown>[])
+    .filter((r) => {
+      const accessDays = parseAccessDays(r.access_days ?? r.accessDays);
+      return !isEnrollmentExpired(r.enrollment_enrolled_at as Date | string, accessDays);
+    })
+    .map((r) => {
     const category = r.cat_id
       ? rowToCamel({ id: r.cat_id, name: r.cat_name, name_ar: r.cat_name_ar, slug: r.cat_slug })
       : null;
-    const { cat_id, cat_name, cat_name_ar, cat_slug, ...rest } = r;
+    const { cat_id, cat_name, cat_name_ar, cat_slug, enrollment_enrolled_at, ...rest } = r;
     const base = rowToCamel(rest) ?? {};
     return { ...base, category };
   }) as unknown as (Course & { category?: Category })[];

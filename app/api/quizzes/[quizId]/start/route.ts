@@ -7,7 +7,10 @@ import {
   countQuizAttemptsByUserAndCourse,
   createQuizAttemptReturningId,
   hasFullCourseAccessAsStudent,
+  getLessonsByCourseId,
+  getQuizzesByCourseId,
 } from "@/lib/db";
+import { getUnlockedContentForStudent } from "@/lib/lesson-sequence";
 
 /** بدء محاولة اختبار: تُحسب محاولة فور الضغط على "ابدأ" */
 export async function POST(
@@ -35,6 +38,33 @@ export async function POST(
     const fullCourse = await hasFullCourseAccessAsStudent(session.user.id, courseId);
     if (!enrolled && !fullCourse) {
       return NextResponse.json({ error: "غير مسجّل في هذه الدورة" }, { status: 403 });
+    }
+
+    // Sequential unlock: prior lessons/quizzes must be completed
+    if (session.user.role === "STUDENT") {
+      const [lessons, quizzes] = await Promise.all([
+        getLessonsByCourseId(courseId),
+        getQuizzesByCourseId(courseId),
+      ]);
+      const unlocked = await getUnlockedContentForStudent({
+        userId: session.user.id,
+        role: session.user.role,
+        courseLessons: lessons.map((l) => ({
+          id: l.id,
+          order: typeof l.order === "number" ? l.order : null,
+        })),
+        courseQuizzes: quizzes.map((q) => ({
+          id: q.id,
+          order: typeof (q as { order?: number }).order === "number" ? (q as { order: number }).order : null,
+        })),
+        courseId,
+      });
+      if (!unlocked.unlockedQuizIds.has(quizId)) {
+        return NextResponse.json(
+          { error: "يجب إكمال العنصر السابق أولاً قبل بدء هذا الاختبار" },
+          { status: 403 },
+        );
+      }
     }
 
     const maxAttempts = result.course.max_quiz_attempts ?? result.course.maxQuizAttempts;

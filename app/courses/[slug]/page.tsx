@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import {
   getCourseWithContent,
   getEnrollment,
+  getActiveEnrollment,
   getAllowedLessonIdsForUserCourse,
   getAllowedQuizIdsForUserCourse,
   getUserById,
@@ -15,8 +16,9 @@ import {
   getCourseCertificateForUser,
   userHasActivePlatformSubscriptionForPaidCourse,
   getLatestPlatformSubscriptionExpiry,
+  parseAccessDays,
 } from "@/lib/db";
-import { getUnlockedLessonIdsForStudent } from "@/lib/lesson-sequence";
+import { getUnlockedContentForStudent, buildOrderedContentItems } from "@/lib/lesson-sequence";
 import { EnrollButton } from "./EnrollButton";
 import { getLocaleFromCookie, getServerTranslator } from "@/lib/i18n/server";
 import { pickLocalizedText } from "@/lib/i18n/localized-field";
@@ -89,11 +91,14 @@ export default async function CoursePage({ params }: Props) {
   let paidCourseCoveredBySubscription = false;
   let subscriptionExpiresAt: Date | null = null;
   let courseCertificate: Awaited<ReturnType<typeof getCourseCertificateForUser>> = null;
+  let enrollmentExpiresAt: Date | null = null;
+  let enrollmentExpired = false;
   try {
     data = await getCourseWithContent(decoded);
     if (data?.course && session?.user?.id && session.user.role === "STUDENT") {
-      const [en, user, lessons, quizzes, fullAccess, subPaid, cert] = await Promise.all([
+      const [en, activeEn, user, lessons, quizzes, fullAccess, subPaid, cert] = await Promise.all([
         getEnrollment(session.user.id, data.course.id),
+        getActiveEnrollment(session.user.id, data.course.id),
         getUserById(session.user.id),
         getAllowedLessonIdsForUserCourse(session.user.id, data.course.id),
         getAllowedQuizIdsForUserCourse(session.user.id, data.course.id),
@@ -101,7 +106,11 @@ export default async function CoursePage({ params }: Props) {
         userHasActivePlatformSubscriptionForPaidCourse(session.user.id, data.course.id),
         getCourseCertificateForUser(session.user.id, data.course.id),
       ]);
-      isEnrolled = !!en;
+      isEnrolled = !!activeEn;
+      enrollmentExpiresAt = activeEn?.expiresAt ?? null;
+      if (en && !activeEn) {
+        enrollmentExpired = true;
+      }
       if (!isEnrolled) {
         allowedLessonIds = lessons;
         allowedQuizIds = quizzes;
@@ -149,6 +158,10 @@ export default async function CoursePage({ params }: Props) {
     isStaff || hasPartialAccess || (session?.user?.role === "STUDENT" && hasFullStudentAccess);
   const canAccessQuizzes = isStaff || (session?.user?.role === "STUDENT" && hasFullStudentAccess);
   const coursePrice = Number((course as Record<string, unknown>).price) || 0;
+  const courseAccessDays = parseAccessDays(
+    (course as { accessDays?: number | null; access_days?: number | null }).accessDays ??
+      (course as { access_days?: number | null }).access_days,
+  );
 
   const liveStreams = canAccessContent ? await getLiveStreamsByCourseId(course.id) : [];
   const homepageSettings = await getHomepageSettings();
@@ -161,9 +174,10 @@ export default async function CoursePage({ params }: Props) {
   const isStudent = session?.user?.role === "STUDENT";
 
   let unlockedLessonIds: Set<string> | null = null;
+  let unlockedQuizIds: Set<string> | null = null;
   if (isStudent && session?.user?.id && canAccessContent) {
     const partialOnly = !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0;
-    unlockedLessonIds = await getUnlockedLessonIdsForStudent({
+    const unlocked = await getUnlockedContentForStudent({
       userId: session.user.id,
       role: session.user.role,
       courseLessons: course.lessons.map((l) => ({
@@ -173,9 +187,19 @@ export default async function CoursePage({ params }: Props) {
             ? ((l as Record<string, unknown>).order as number)
             : null,
       })),
+      courseQuizzes: (course.quizzes ?? []).map((q) => ({
+        id: String((q as Record<string, unknown>).id ?? ""),
+        order:
+          typeof (q as Record<string, unknown>).order === "number"
+            ? ((q as Record<string, unknown>).order as number)
+            : null,
+      })),
       courseId: course.id,
       allowedLessonIds: partialOnly ? allowedLessonIds : null,
+      allowedQuizIds: partialOnly && allowedQuizIds.length > 0 ? allowedQuizIds : null,
     });
+    unlockedLessonIds = unlocked.unlockedLessonIds;
+    unlockedQuizIds = unlocked.unlockedQuizIds;
   }
 
   return (
@@ -336,14 +360,40 @@ export default async function CoursePage({ params }: Props) {
                 userBalance={userBalance}
               />
             )}
+            {enrollmentExpired && canEnroll ? (
+              <p className="mt-3 rounded-[var(--radius-btn)] border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-800 dark:text-amber-200">
+                {t(
+                  "courses.accessExpiredRenew",
+                  "Your access to this course has expired. Enroll again to renew access.",
+                )}
+              </p>
+            ) : null}
             {isEnrolled && (
               <p className="mt-4 rounded-[var(--radius-btn)] bg-[var(--color-primary-light)]/50 px-4 py-2 text-sm text-[var(--color-primary)]">
                 ✓ {t("courses.youAreEnrolled", "You are enrolled in this course.")}{" "}
+                {enrollmentExpiresAt ? (
+                  <span>
+                    (
+                    {t("courses.accessUntil", "Access until")}{" "}
+                    {new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-US", {
+                      dateStyle: "medium",
+                    }).format(enrollmentExpiresAt)}
+                    )
+                  </span>
+                ) : null}{" "}
                 <Link href="/dashboard" className="font-medium underline">
                   {t("dashboard.title", "Dashboard")}
                 </Link>
               </p>
             )}
+            {courseAccessDays != null && !isEnrolled ? (
+              <p className="mt-3 text-sm text-[var(--color-muted)]">
+                {t("courses.accessDaysInfo", "Access duration after enrollment:")}{" "}
+                <strong>
+                  {courseAccessDays} {t("courses.days", "days")}
+                </strong>
+              </p>
+            ) : null}
 
             {courseCertificate && (
               <div className="mt-4">
@@ -369,113 +419,219 @@ export default async function CoursePage({ params }: Props) {
               </div>
             )}
 
-            {course.lessons.length > 0 && (
+            {(course.lessons.length > 0 || (course.quizzes && course.quizzes.length > 0)) && (
               <div className="mt-10">
                 <h2 className="text-xl font-semibold text-[var(--color-foreground)]">
-                  {t("courses.courseContent", "Course content")} ({course.lessons.length} {t("courses.lessonsCount", "lessons")})
+                  {t("courses.courseContent", "Course content")} (
+                  {course.lessons.length + (course.quizzes?.length ?? 0)}{" "}
+                  {t("courses.itemsCount", "items")})
                 </h2>
                 <ul className="mt-4 space-y-2">
-                  {(hasPartialAccess && !isEnrolled && !isStaff
-                    ? course.lessons.filter((l) => allowedLessonIds.includes(String((l as Record<string, unknown>).id ?? l.id)))
-                    : course.lessons
-                  ).map((lesson, i) => {
-                    const lessonId = String((lesson as Record<string, unknown>).id ?? lesson.id);
-                    const isLessonLocked =
-                      isStudent && unlockedLessonIds != null && !unlockedLessonIds.has(lessonId);
-                    const lessonCanOpen = canAccessContent && !isLessonLocked;
-                    const lessonClassName = `flex items-center gap-3 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-3 ${
-                      lessonCanOpen
-                        ? "transition hover:border-[var(--color-primary)]/30"
-                        : isLessonLocked
-                          ? "cursor-not-allowed opacity-60"
-                          : ""
-                    }`;
-                    const content = (
-                      <>
-                        <span
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
-                            isLessonLocked
-                              ? "bg-[var(--color-muted)]/20 text-[var(--color-muted)]"
-                              : "bg-[var(--color-primary)]/20 text-[var(--color-primary)]"
-                          }`}
-                        >
-                          {isLessonLocked ? "🔒" : i + 1}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <span className="font-medium text-[var(--color-foreground)]">
-                            {String((lesson as Record<string, unknown>).titleAr ?? (lesson as Record<string, unknown>).title ?? "")}
-                          </span>
-                          {(lesson as Record<string, unknown>).duration ? (
-                            <span className="mr-2 text-sm text-[var(--color-muted)]">
-                              • {String((lesson as Record<string, unknown>).duration)} {t("courses.minutes", "minutes")}
-                            </span>
-                          ) : null}
-                          {(lesson as Record<string, unknown>).videoUrl && lessonCanOpen ? (
-                            <span className="mr-2 text-xs text-[var(--color-primary)]">▶ {t("courses.videoTag", "Video")}</span>
-                          ) : null}
-                          {isLessonLocked ? (
-                            <span className="mr-2 text-xs text-[var(--color-muted)]">
-                              {t("courses.lessonLocked", "Complete and rate the previous lesson first")}
-                            </span>
-                          ) : null}
-                        </div>
-                      </>
+                  {(() => {
+                    const visibleLessons =
+                      hasPartialAccess && !isEnrolled && !isStaff
+                        ? course.lessons.filter((l) =>
+                            allowedLessonIds.includes(
+                              String((l as Record<string, unknown>).id ?? l.id),
+                            ),
+                          )
+                        : course.lessons;
+                    const visibleQuizzes =
+                      hasPartialAccess && !isEnrolled && !isStaff
+                        ? (course.quizzes ?? []).filter((q) =>
+                            allowedQuizIds.length > 0
+                              ? allowedQuizIds.includes(String((q as Record<string, unknown>).id))
+                              : canAccessQuizzes,
+                          )
+                        : (course.quizzes ?? []);
+                    const lessonById = new Map(
+                      visibleLessons.map((l) => [
+                        String((l as Record<string, unknown>).id ?? l.id),
+                        l,
+                      ]),
                     );
-                    const courseSlugOrId = String((course as Record<string, unknown>).slug ?? "").trim() || String((course as Record<string, unknown>).id ?? course.id);
-                    const lessonSlugOrId = (lesson as Record<string, unknown>).slug && String((lesson as Record<string, unknown>).slug).trim()
-                      ? encodeURIComponent(String((lesson as Record<string, unknown>).slug).trim())
-                      : lessonId;
-                    return (
-                      <li key={lessonId}>
-                        {lessonCanOpen ? (
-                          <Link
-                            href={`/courses/${courseSlugOrId}/lessons/${lessonSlugOrId}`}
-                            className={lessonClassName}
-                          >
-                            {content}
-                          </Link>
-                        ) : (
-                          <div
-                            className={lessonClassName}
-                            title={isLessonLocked ? t("courses.lessonLocked", "Complete and rate the previous lesson first") : undefined}
-                          >
-                            {content}
-                          </div>
-                        )}
-                      </li>
+                    const quizById = new Map(
+                      visibleQuizzes.map((q) => [
+                        String((q as Record<string, unknown>).id),
+                        q as Record<string, unknown> & { _count?: { questions?: number } },
+                      ]),
                     );
-                  })}
-                </ul>
-              </div>
-            )}
+                    const ordered = buildOrderedContentItems({
+                      lessons: visibleLessons.map((l) => ({
+                        id: String((l as Record<string, unknown>).id ?? l.id),
+                        order:
+                          typeof (l as Record<string, unknown>).order === "number"
+                            ? ((l as Record<string, unknown>).order as number)
+                            : null,
+                      })),
+                      quizzes: visibleQuizzes.map((q) => ({
+                        id: String((q as Record<string, unknown>).id),
+                        order:
+                          typeof (q as Record<string, unknown>).order === "number"
+                            ? ((q as Record<string, unknown>).order as number)
+                            : null,
+                      })),
+                    });
+                    const courseSlugOrId =
+                      String((course as Record<string, unknown>).slug ?? "").trim() ||
+                      String((course as Record<string, unknown>).id ?? course.id);
 
-            {course.quizzes && course.quizzes.length > 0 && (
-              <div className="mt-10">
-                <h2 className="text-xl font-semibold text-[var(--color-foreground)]">
-                  {t("courses.quizzes", "Quizzes")} ({course.quizzes.length})
-                </h2>
-                <ul className="mt-4 space-y-2">
-                  {course.quizzes.map((quiz, i) => {
-                    const q = quiz as Record<string, unknown> & { _count?: { questions?: number } };
-                    const questionsCount = q._count?.questions ?? 0;
-                    return (
-                    <li key={String(q.id)}>
-                      {canAccessQuizzes ? (
-                        <Link
-                          href={`/courses/${encodeURIComponent(normalizeSlugForUrl(String((course as Record<string, unknown>).slug ?? "")) || String((course as Record<string, unknown>).id ?? course.id))}/quizzes/${String(q.id)}`}
-                          className="flex items-center justify-between rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-4 transition hover:border-[var(--color-primary)]/30"
-                        >
-                          <span className="font-medium text-[var(--color-foreground)]">{String(q.title ?? "")}</span>
-                          <span className="text-sm text-[var(--color-muted)]">{questionsCount} {t("courses.questions", "questions")}</span>
-                        </Link>
-                      ) : (
-                        <div className="flex items-center justify-between rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-4 opacity-75">
-                          <span className="font-medium text-[var(--color-foreground)]">{String(q.title ?? "")}</span>
-                          <span className="text-sm text-[var(--color-muted)]">{questionsCount} {t("courses.questions", "questions")}</span>
-                        </div>
-                      )}
-                    </li>
-                  );})}
+                    return ordered.map((item, i) => {
+                      if (item.type === "lesson") {
+                        const lesson = lessonById.get(item.id);
+                        if (!lesson) return null;
+                        const lessonId = item.id;
+                        const isLessonLocked =
+                          isStudent &&
+                          unlockedLessonIds != null &&
+                          !unlockedLessonIds.has(lessonId);
+                        const lessonCanOpen = canAccessContent && !isLessonLocked;
+                        const lessonClassName = `flex items-center gap-3 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-3 ${
+                          lessonCanOpen
+                            ? "transition hover:border-[var(--color-primary)]/30"
+                            : isLessonLocked
+                              ? "cursor-not-allowed opacity-60"
+                              : ""
+                        }`;
+                        const lessonSlugOrId =
+                          (lesson as Record<string, unknown>).slug &&
+                          String((lesson as Record<string, unknown>).slug).trim()
+                            ? encodeURIComponent(
+                                String((lesson as Record<string, unknown>).slug).trim(),
+                              )
+                            : lessonId;
+                        const content = (
+                          <>
+                            <span
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
+                                isLessonLocked
+                                  ? "bg-[var(--color-muted)]/20 text-[var(--color-muted)]"
+                                  : "bg-[var(--color-primary)]/20 text-[var(--color-primary)]"
+                              }`}
+                            >
+                              {isLessonLocked ? "🔒" : i + 1}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <span className="font-medium text-[var(--color-foreground)]">
+                                {String(
+                                  (lesson as Record<string, unknown>).titleAr ??
+                                    (lesson as Record<string, unknown>).title ??
+                                    "",
+                                )}
+                              </span>
+                              {(lesson as Record<string, unknown>).duration ? (
+                                <span className="mr-2 text-sm text-[var(--color-muted)]">
+                                  • {String((lesson as Record<string, unknown>).duration)}{" "}
+                                  {t("courses.minutes", "minutes")}
+                                </span>
+                              ) : null}
+                              {(lesson as Record<string, unknown>).videoUrl && lessonCanOpen ? (
+                                <span className="mr-2 text-xs text-[var(--color-primary)]">
+                                  ▶ {t("courses.videoTag", "Video")}
+                                </span>
+                              ) : null}
+                              {isLessonLocked ? (
+                                <span className="mr-2 text-xs text-[var(--color-muted)]">
+                                  {t(
+                                    "courses.contentLocked",
+                                    "Complete the previous item first",
+                                  )}
+                                </span>
+                              ) : null}
+                            </div>
+                          </>
+                        );
+                        return (
+                          <li key={`lesson-${lessonId}`}>
+                            {lessonCanOpen ? (
+                              <Link
+                                href={`/courses/${courseSlugOrId}/lessons/${lessonSlugOrId}`}
+                                className={lessonClassName}
+                              >
+                                {content}
+                              </Link>
+                            ) : (
+                              <div
+                                className={lessonClassName}
+                                title={
+                                  isLessonLocked
+                                    ? t(
+                                        "courses.contentLocked",
+                                        "Complete the previous item first",
+                                      )
+                                    : undefined
+                                }
+                              >
+                                {content}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      }
+
+                      const quiz = quizById.get(item.id);
+                      if (!quiz) return null;
+                      const questionsCount = quiz._count?.questions ?? 0;
+                      const isQuizLocked =
+                        isStudent && unlockedQuizIds != null && !unlockedQuizIds.has(item.id);
+                      const quizCanOpen = canAccessQuizzes && !isQuizLocked;
+                      const quizClassName = `flex items-center justify-between gap-3 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-3 ${
+                        quizCanOpen
+                          ? "transition hover:border-[var(--color-primary)]/30"
+                          : isQuizLocked
+                            ? "cursor-not-allowed opacity-60"
+                            : "opacity-75"
+                      }`;
+                      const quizInner = (
+                        <>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
+                                isQuizLocked
+                                  ? "bg-[var(--color-muted)]/20 text-[var(--color-muted)]"
+                                  : "bg-[var(--color-primary)]/20 text-[var(--color-primary)]"
+                              }`}
+                            >
+                              {isQuizLocked ? "🔒" : i + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="text-xs text-[var(--color-muted)]">
+                                {t("courses.testPrefix", "Quiz:")}{" "}
+                              </span>
+                              <span className="font-medium text-[var(--color-foreground)]">
+                                {String(quiz.title ?? "")}
+                              </span>
+                              {isQuizLocked ? (
+                                <span className="mr-2 block text-xs text-[var(--color-muted)]">
+                                  {t(
+                                    "courses.contentLocked",
+                                    "Complete the previous item first",
+                                  )}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-sm text-[var(--color-muted)]">
+                            {questionsCount} {t("courses.questions", "questions")}
+                          </span>
+                        </>
+                      );
+                      return (
+                        <li key={`quiz-${item.id}`}>
+                          {quizCanOpen ? (
+                            <Link
+                              href={`/courses/${encodeURIComponent(normalizeSlugForUrl(String((course as Record<string, unknown>).slug ?? "")) || String((course as Record<string, unknown>).id ?? course.id))}/quizzes/${item.id}`}
+                              className={quizClassName}
+                            >
+                              {quizInner}
+                            </Link>
+                          ) : (
+                            <div className={quizClassName}>{quizInner}</div>
+                          )}
+                        </li>
+                      );
+                    });
+                  })()}
                 </ul>
               </div>
             )}

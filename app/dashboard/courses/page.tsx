@@ -32,6 +32,12 @@ export default async function DashboardCoursesPage() {
       slug: String(row.slug ?? ""),
       isPublished: Boolean(row.isPublished ?? row.is_published ?? false),
       price: Number(row.price ?? 0),
+      accessDays:
+        typeof row.accessDays === "number"
+          ? row.accessDays
+          : typeof row.access_days === "number"
+            ? row.access_days
+            : null,
       imageUrl,
       lessonsCount: Number(row.lessonsCount ?? 0),
       enrollmentsCount: Number(row.enrollmentsCount ?? 0),

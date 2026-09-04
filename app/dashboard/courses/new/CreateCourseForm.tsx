@@ -46,6 +46,7 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
     imageUrl: "",
     price: "",
     maxQuizAttempts: "",
+    accessDays: "",
     categoryId: "",
     categoryNameAr: "",
     categoryNameEn: "",
@@ -106,6 +107,9 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
         quizzes: quizzesRef.current,
         contentOrder: contentOrderRef.current,
         isPublished: false,
+        accessDays: formRef.current.accessDays.trim()
+          ? parseInt(formRef.current.accessDays, 10)
+          : null,
       }),
     [],
   );
@@ -357,6 +361,7 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
       })),
       contentOrder: filteredContentOrder,
       isPublished: true,
+      accessDays: form.accessDays.trim() ? parseInt(form.accessDays, 10) : null,
     });
 
     const savedId = await saveNow({ publish: true, payload: publishPayload });
@@ -415,6 +420,7 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
                       imageUrl: "",
                       price: "",
                       maxQuizAttempts: "",
+                      accessDays: "",
                       categoryId: "",
                       categoryNameAr: "",
                       categoryNameEn: "",
@@ -734,6 +740,24 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
             className="mt-1 w-full max-w-xs rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2"
           />
           <p className="mt-1 text-xs text-[var(--color-muted)]">{t(`${Cf}.quizAttemptsExplanation`)}</p>
+          <label className="mt-4 block text-sm font-medium text-[var(--color-foreground)]">
+            {t(`${Cf}.accessDaysLabel`, "Access duration (days)")}
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="3650"
+            placeholder={t(`${Cf}.accessDaysUnlimited`, "Unlimited")}
+            value={form.accessDays}
+            onChange={(e) => setForm((f) => ({ ...f, accessDays: e.target.value }))}
+            className="mt-1 w-full max-w-xs rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2"
+          />
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            {t(
+              `${Cf}.accessDaysHint`,
+              "How many days a student can access the course after enrollment. Leave blank for no expiry.",
+            )}
+          </p>
         </div>
         {quizzes.map((quiz, qi) => (
           <div key={qi} className="mb-6 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-4">

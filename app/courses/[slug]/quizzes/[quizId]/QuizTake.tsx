@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import type { QuizApiPayload } from "./QuizPageClient";
 import { useT } from "@/components/LocaleProvider";
 
 export function QuizTake({ quiz }: { quiz: QuizApiPayload }) {
   const t = useT();
+  const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [started, setStarted] = useState(false);
   const [attemptId, setAttemptId] = useState<string | null>(null);
@@ -82,6 +84,7 @@ export function QuizTake({ quiz }: { quiz: QuizApiPayload }) {
           return;
         }
         setSubmitted(true);
+        router.refresh();
         if (reason === "timeup") {
           setToastMessage(t("quiz.examTimeEnded", "Time is up"));
         }
@@ -92,7 +95,7 @@ export function QuizTake({ quiz }: { quiz: QuizApiPayload }) {
         setSubmitting(false);
       }
     },
-    [attemptId, quiz.id, t, totalScored]
+    [attemptId, quiz.id, t, totalScored, router]
   );
 
   async function handleStart() {

@@ -33,6 +33,7 @@ type InitialData = {
   price: string;
   isPublished: boolean;
   ratingRequired: boolean;
+  accessDays: number | null;
   maxQuizAttempts: number | null;
   categoryId: string;
   lessons: LessonRow[];
@@ -73,6 +74,7 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
     price: initialData.price,
     isPublished: initialData.isPublished,
     ratingRequired: initialData.ratingRequired,
+    accessDays: initialData.accessDays != null ? String(initialData.accessDays) : "",
     maxQuizAttempts: initialData.maxQuizAttempts != null ? String(initialData.maxQuizAttempts) : "",
     categoryId: initialData.categoryId ?? "",
     categoryNameAr: "",
@@ -173,6 +175,9 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
         contentOrder: contentOrderRef.current,
         isPublished: formRef.current.isPublished,
         ratingRequired: formRef.current.ratingRequired,
+        accessDays: formRef.current.accessDays.trim()
+          ? parseInt(formRef.current.accessDays, 10)
+          : null,
       }),
     [],
   );
@@ -357,6 +362,7 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
       price: form.price ? parseFloat(form.price) : 0,
       isPublished: form.isPublished,
       ratingRequired: form.ratingRequired,
+      accessDays: form.accessDays.trim() ? parseInt(form.accessDays, 10) : null,
       maxQuizAttempts: form.maxQuizAttempts.trim() ? parseInt(form.maxQuizAttempts, 10) : null,
       ...(form.categoryNameAr.trim() || form.categoryNameEn.trim()
         ? { categoryNameAr: form.categoryNameAr.trim(), categoryNameEn: form.categoryNameEn.trim() }
@@ -521,6 +527,26 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
             <label className="block text-sm font-medium text-[var(--color-foreground)]">{t(`${Cf}.quizAttemptsHint`)}</label>
             <input type="number" min="1" placeholder={t(`${Cf}.unlimitedPlaceholderLine`)} value={form.maxQuizAttempts} onChange={(e) => setForm((f) => ({ ...f, maxQuizAttempts: e.target.value }))} className="mt-1 w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2" />
             <p className="mt-1 text-xs text-[var(--color-muted)]">{t(`${Cf}.quizAttemptsExplanation`)}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-foreground)]">
+              {t(`${Cf}.accessDaysLabel`, "Access duration (days)")}
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="3650"
+              placeholder={t(`${Cf}.accessDaysUnlimited`, "Unlimited")}
+              value={form.accessDays}
+              onChange={(e) => setForm((f) => ({ ...f, accessDays: e.target.value }))}
+              className="mt-1 w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2"
+            />
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              {t(
+                `${Cf}.accessDaysHint`,
+                "How many days a student can access the course after enrollment. Leave blank for no expiry.",
+              )}
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--color-foreground)]">{t(`${Cf}.titleArRequired`)}</label>

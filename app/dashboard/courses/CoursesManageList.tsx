@@ -14,6 +14,7 @@ type CourseRow = {
   slug: string;
   isPublished: boolean;
   price: number;
+  accessDays: number | null;
   imageUrl: string | null;
   lessonsCount: number;
   enrollmentsCount: number;
@@ -52,6 +53,11 @@ function CourseTableRow({
       <td className="p-3 text-[var(--color-muted)]">{c.enrollmentsCount}</td>
       <td className="p-3">
         {c.price.toFixed(2)} {egp}
+      </td>
+      <td className="p-3 text-[var(--color-muted)]">
+        {c.accessDays != null
+          ? `${c.accessDays} ${t(`${L}.days`, "days")}`
+          : t(`${L}.unlimited`, "Unlimited")}
       </td>
       <td className="p-3">
         <span
@@ -212,6 +218,7 @@ export function CoursesManageList({ courses }: { courses: CourseRow[] }) {
                     <th className={thClass}>{t(`${L}.colLessons`)}</th>
                     <th className={thClass}>{t(`${L}.colStudents`)}</th>
                     <th className={thClass}>{t(`${L}.colPrice`)}</th>
+                    <th className={thClass}>{t(`${L}.colAccess`, "Access")}</th>
                     <th className={thClass}>{t(`${L}.colStatus`)}</th>
                     <th className={thClass}>{t(`${L}.colActions`)}</th>
                   </tr>

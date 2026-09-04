@@ -14,7 +14,7 @@ import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 import { CourseOutlineSidebar } from "@/components/CourseOutlineSidebar";
 import { LessonNavigationBar } from "@/components/LessonNavigationBar";
 import { LessonStudentFlow } from "@/components/LessonStudentFlow";
-import { getUnlockedLessonIdsForStudent, sortLessonsByOrder } from "@/lib/lesson-sequence";
+import { getUnlockedContentForStudent, buildOrderedContentItems } from "@/lib/lesson-sequence";
 import { getLocaleFromCookie, getServerTranslator } from "@/lib/i18n/server";
 import { pickLocalizedText } from "@/lib/i18n/localized-field";
 
@@ -109,23 +109,37 @@ export default async function LessonPage({ params }: Props) {
   >;
 
   const partialOnly = !isStaff && !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0;
-  const unlockedLessonIds =
-    isStudent && session?.user?.id
-      ? [
-          ...(
-            await getUnlockedLessonIdsForStudent({
-              userId: session.user.id,
-              role: session.user.role,
-              courseLessons: lessonsAll.map((l) => ({
-                id: String(l.id),
-                order: typeof l.order === "number" ? l.order : null,
-              })),
-              courseId: course.id,
-              allowedLessonIds: partialOnly ? allowedLessonIds : null,
-            })
-          ),
-        ]
-      : lessonsAll.map((l) => String(l.id));
+  const quizzesAll = (course.quizzes ?? []) as Array<
+    Record<string, unknown> & {
+      id: string;
+      title?: string;
+      order?: number;
+      _count?: { questions?: number };
+    }
+  >;
+  const sequenceLessons = lessonsAll.map((l) => ({
+    id: String(l.id),
+    order: typeof l.order === "number" ? l.order : null,
+  }));
+  const sequenceQuizzes = quizzesAll.map((q) => ({
+    id: String(q.id),
+    order: typeof q.order === "number" ? q.order : null,
+  }));
+
+  let unlockedLessonIds: string[] = lessonsAll.map((l) => String(l.id));
+  let unlockedQuizIds: string[] = quizzesAll.map((q) => String(q.id));
+  if (isStudent && session?.user?.id) {
+    const unlocked = await getUnlockedContentForStudent({
+      userId: session.user.id,
+      role: session.user.role,
+      courseLessons: sequenceLessons,
+      courseQuizzes: sequenceQuizzes,
+      courseId: course.id,
+      allowedLessonIds: partialOnly ? allowedLessonIds : null,
+    });
+    unlockedLessonIds = [...unlocked.unlockedLessonIds];
+    unlockedQuizIds = [...unlocked.unlockedQuizIds];
+  }
 
   if (isStudent && session?.user?.id && !unlockedLessonIds.includes(lessonIdStr)) {
     notFound();
@@ -136,15 +150,14 @@ export default async function LessonPage({ params }: Props) {
       ? await isLessonWatchComplete(session.user.id, lessonIdStr)
       : true;
 
-  const orderedLessonIds = sortLessonsByOrder(
-    lessonsAll.map((l) => ({
-      id: String(l.id),
-      order: typeof l.order === "number" ? l.order : null,
-    })),
-  ).map((l) => l.id);
-  const isLastLesson =
-    orderedLessonIds.length > 0 &&
-    orderedLessonIds[orderedLessonIds.length - 1] === lessonIdStr;
+  const orderedContent = buildOrderedContentItems({
+    lessons: sequenceLessons,
+    quizzes: sequenceQuizzes,
+  });
+  const isLastContentItem =
+    orderedContent.length > 0 &&
+    orderedContent[orderedContent.length - 1]?.type === "lesson" &&
+    orderedContent[orderedContent.length - 1]?.id === lessonIdStr;
 
   const certificateHref = `/courses/${courseSeg(course)}/certificate`;
   const videoUrl = (lessonObj.videoUrl ?? lessonObj.video_url) as string;
@@ -170,13 +183,37 @@ export default async function LessonPage({ params }: Props) {
     !isStaff && !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0
       ? lessonsAll.filter((l) => allowedLessonIds.includes(String(l.id)))
       : lessonsAll;
-  const quizzesAll = (course.quizzes ?? []) as Array<Record<string, unknown> & { id: string; title?: string; _count?: { questions?: number } }>;
   const quizzes =
-    !isStaff && !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0 ? [] : quizzesAll;
-  const items: CourseItem[] = [
-    ...lessons.map((l) => ({ type: "lesson" as const, id: l.id, slug: (l as Record<string, unknown>).slug as string | null, title: String(l.title ?? ""), titleAr: l.titleAr })),
-    ...quizzes.map((q) => ({ type: "quiz" as const, id: q.id, title: String(q.title ?? ""), _count: q._count })),
-  ];
+    !isStaff && !isEnrolled && !hasFullStudentAccess && allowedLessonIds.length > 0
+      ? []
+      : quizzesAll;
+
+  const lessonById = new Map(lessons.map((l) => [String(l.id), l]));
+  const quizById = new Map(quizzes.map((q) => [String(q.id), q]));
+  const items: CourseItem[] = [];
+  for (const item of orderedContent) {
+    if (item.type === "lesson") {
+      const l = lessonById.get(item.id);
+      if (!l) continue;
+      items.push({
+        type: "lesson",
+        id: l.id,
+        slug: ((l as Record<string, unknown>).slug as string | null) ?? null,
+        title: String(l.title ?? ""),
+        titleAr: l.titleAr,
+      });
+    } else {
+      const q = quizById.get(item.id);
+      if (!q) continue;
+      items.push({
+        type: "quiz",
+        id: q.id,
+        title: String(q.title ?? ""),
+        _count: q._count,
+      });
+    }
+  }
+
   const currentIndex = items.findIndex((i) => i.type === "lesson" && i.id === lessonObj.id);
   const prevItem = currentIndex > 0 ? items[currentIndex - 1] : null;
   const nextItem = currentIndex >= 0 && currentIndex < items.length - 1 ? items[currentIndex + 1] : null;
@@ -199,7 +236,7 @@ export default async function LessonPage({ params }: Props) {
               lessonId={lessonIdStr}
               videoId={vdocipherVideoId}
               initialWatchComplete={watchComplete}
-              isLastLesson={isLastLesson}
+              isLastLesson={isLastContentItem}
               certificateHref={certificateHref}
               prevItem={prevItem}
               nextItem={nextItem}
@@ -298,6 +335,7 @@ export default async function LessonPage({ params }: Props) {
             currentLessonId={lessonObj.id as string}
             currentQuizId={null}
             unlockedLessonIds={isStudent ? unlockedLessonIds : null}
+            unlockedQuizIds={isStudent ? unlockedQuizIds : null}
           />
         </aside>
       </div>

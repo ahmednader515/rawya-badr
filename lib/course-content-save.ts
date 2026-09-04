@@ -36,6 +36,7 @@ export type CourseAutosaveBody = {
   price?: number;
   isPublished?: boolean;
   ratingRequired?: boolean;
+  accessDays?: number | null;
   maxQuizAttempts?: number | null;
   categoryId?: string | null;
   categoryNameAr?: string;

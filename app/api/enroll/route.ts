@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getCourseById, getEnrollment, getUserById, createEnrollment, updateUser, createPayment } from "@/lib/db";
+import {
+  getCourseById,
+  getEnrollment,
+  getActiveEnrollment,
+  getUserById,
+  createEnrollment,
+  renewEnrollment,
+  updateUser,
+  createPayment,
+  parseAccessDays,
+  isEnrollmentExpired,
+} from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -20,10 +31,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "الدورة غير موجودة" }, { status: 404 });
   }
 
-  const existing = await getEnrollment(session.user.id, courseId);
-  if (existing) {
+  const active = await getActiveEnrollment(session.user.id, courseId);
+  if (active) {
     return NextResponse.json({ error: "مسجّل في هذه الدورة مسبقاً" }, { status: 400 });
   }
+
+  const existing = await getEnrollment(session.user.id, courseId);
+  const accessDays = parseAccessDays(
+    (course as { accessDays?: number | null; access_days?: number | null }).accessDays ??
+      (course as { access_days?: number | null }).access_days,
+  );
+  const canRenew =
+    !!existing &&
+    isEnrollmentExpired(
+      (existing as { enrolled_at?: Date; enrolledAt?: Date }).enrolled_at ??
+        (existing as { enrolledAt?: Date }).enrolledAt,
+      accessDays,
+    );
 
   const user = await getUserById(session.user.id);
   if (!user) {
@@ -42,7 +66,7 @@ export async function POST(request: NextRequest) {
         coursePrice,
         userBalance,
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -51,10 +75,17 @@ export async function POST(request: NextRequest) {
     await updateUser(session.user.id, { balance: newBalance });
     await createPayment(session.user.id, courseId, coursePrice);
   }
-  await createEnrollment(session.user.id, courseId);
+
+  if (canRenew) {
+    await renewEnrollment(session.user.id, courseId);
+  } else {
+    await createEnrollment(session.user.id, courseId);
+  }
 
   return NextResponse.json({
     success: true,
-    message: coursePrice > 0 ? `تم التسجيل وخصم ${coursePrice.toFixed(2)} ج.م من رصيدك` : "تم التسجيل بنجاح",
+    message: coursePrice > 0
+      ? `تم التسجيل وخصم ${coursePrice.toFixed(2)} ج.م من رصيدك`
+      : "تم التسجيل بنجاح",
   });
 }

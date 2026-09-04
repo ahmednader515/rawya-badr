@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { getServerTranslator } from "@/lib/i18n/server";
+import { buildOrderedContentItems } from "@/lib/lesson-sequence";
 
 function courseSeg(course: { slug?: string | null; id: string }): string {
-  const s = (course.slug && course.slug.trim()) ? String(course.slug).trim() : "";
+  const s = course.slug && course.slug.trim() ? String(course.slug).trim() : "";
   const normalized = s ? s.replace(/-+$/, "").replace(/^-+/, "") : "";
   return normalized ? encodeURIComponent(normalized) : (course as { id: string }).id;
 }
 
-function lessonHref(course: { slug?: string | null; id: string }, lesson: { slug?: string | null; id: string }): string {
+function lessonHref(
+  course: { slug?: string | null; id: string },
+  lesson: { slug?: string | null; id: string },
+): string {
   const seg = courseSeg(course);
-  const lessonSeg = (lesson.slug && lesson.slug.trim()) ? encodeURIComponent(lesson.slug.trim()) : lesson.id;
+  const lessonSeg =
+    lesson.slug && lesson.slug.trim() ? encodeURIComponent(lesson.slug.trim()) : lesson.id;
   return `/courses/${seg}/lessons/${lessonSeg}`;
 }
 
@@ -19,11 +24,21 @@ function quizHref(course: { slug?: string | null; id: string }, quizId: string):
 
 type Props = {
   course: { id: string; slug?: string | null };
-  lessons: Array<Record<string, unknown> & { id: string; title?: string; titleAr?: string | null; order?: number }>;
-  quizzes: Array<Record<string, unknown> & { id: string; title?: string; order?: number; _count?: { questions?: number } }>;
+  lessons: Array<
+    Record<string, unknown> & { id: string; title?: string; titleAr?: string | null; order?: number }
+  >;
+  quizzes: Array<
+    Record<string, unknown> & {
+      id: string;
+      title?: string;
+      order?: number;
+      _count?: { questions?: number };
+    }
+  >;
   currentLessonId?: string | null;
   currentQuizId?: string | null;
   unlockedLessonIds?: string[] | null;
+  unlockedQuizIds?: string[] | null;
 };
 
 export async function CourseOutlineSidebar({
@@ -33,19 +48,26 @@ export async function CourseOutlineSidebar({
   currentLessonId,
   currentQuizId,
   unlockedLessonIds,
+  unlockedQuizIds,
 }: Props) {
   const t = await getServerTranslator();
-  const unlockedSet =
-    unlockedLessonIds && unlockedLessonIds.length > 0
-      ? new Set(unlockedLessonIds)
-      : null;
+  const unlockedLessons =
+    unlockedLessonIds != null ? new Set(unlockedLessonIds) : null;
+  const unlockedQuizzes =
+    unlockedQuizIds != null ? new Set(unlockedQuizIds) : null;
 
-  const lessonOrder = (l: { order?: number }) => (typeof l.order === "number" ? l.order : 999);
-  const quizOrder = (q: { order?: number }) => (typeof q.order === "number" ? q.order : 999);
-  const items = [
-    ...lessons.map((l) => ({ type: "lesson" as const, order: lessonOrder(l), data: l })),
-    ...quizzes.map((q) => ({ type: "quiz" as const, order: quizOrder(q), data: q })),
-  ].sort((a, b) => a.order - b.order);
+  const lessonById = new Map(lessons.map((l) => [l.id, l]));
+  const quizById = new Map(quizzes.map((q) => [q.id, q]));
+  const ordered = buildOrderedContentItems({
+    lessons: lessons.map((l) => ({
+      id: l.id,
+      order: typeof l.order === "number" ? l.order : null,
+    })),
+    quizzes: quizzes.map((q) => ({
+      id: q.id,
+      order: typeof q.order === "number" ? q.order : null,
+    })),
+  });
 
   return (
     <div className="sticky top-24 w-full max-w-[200px] rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-card)]">
@@ -53,12 +75,15 @@ export async function CourseOutlineSidebar({
         {t("courses.courseContent", "Course content")}
       </h2>
       <ul className="space-y-0.5">
-        {items.map((item, i) => {
+        {ordered.map((item, i) => {
           if (item.type === "lesson") {
-            const l = item.data;
+            const l = lessonById.get(item.id);
+            if (!l) return null;
             const isCurrent = l.id === currentLessonId;
-            const isLocked = unlockedSet != null && !unlockedSet.has(l.id);
-            const title = String((l as Record<string, unknown>).titleAr ?? (l as Record<string, unknown>).title ?? "");
+            const isLocked = unlockedLessons != null && !unlockedLessons.has(l.id);
+            const title = String(
+              (l as Record<string, unknown>).titleAr ?? (l as Record<string, unknown>).title ?? "",
+            );
             const className = `block rounded-[var(--radius-btn)] px-2 py-1.5 text-xs transition ${
               isCurrent
                 ? "bg-[var(--color-primary)]/15 font-medium text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/30"
@@ -69,7 +94,10 @@ export async function CourseOutlineSidebar({
             return (
               <li key={`l-${l.id}`}>
                 {isLocked ? (
-                  <span className={className} title={t("courses.lessonLocked", "Complete and rate the previous lesson first")}>
+                  <span
+                    className={className}
+                    title={t("courses.contentLocked", "Complete the previous item first")}
+                  >
                     <span className="ml-1.5 text-[var(--color-muted)]">{i + 1}</span>
                     <span className="ml-1 opacity-70">🔒</span>
                     <span>{title}</span>
@@ -83,26 +111,50 @@ export async function CourseOutlineSidebar({
               </li>
             );
           }
-          const q = item.data;
+
+          const q = quizById.get(item.id);
+          if (!q) return null;
           const isCurrent = q.id === currentQuizId;
+          const isLocked = unlockedQuizzes != null && !unlockedQuizzes.has(q.id);
           const title = String((q as Record<string, unknown>).title ?? "");
           const qCount = (q as { _count?: { questions?: number } })._count;
-          const count = qCount != null && typeof qCount === "object" && "questions" in qCount ? Number(qCount.questions) || 0 : 0;
+          const count =
+            qCount != null && typeof qCount === "object" && "questions" in qCount
+              ? Number(qCount.questions) || 0
+              : 0;
+          const className = `block rounded-[var(--radius-btn)] px-2 py-1.5 text-xs transition ${
+            isCurrent
+              ? "bg-[var(--color-primary)]/15 font-medium text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/30"
+              : isLocked
+                ? "cursor-not-allowed text-[var(--color-muted)] opacity-60"
+                : "text-[var(--color-foreground)] hover:bg-[var(--color-background)]"
+          }`;
           return (
             <li key={`q-${q.id}`}>
-              <Link
-                href={quizHref(course, q.id)}
-                className={`block rounded-[var(--radius-btn)] px-2 py-1.5 text-xs transition ${
-                  isCurrent
-                    ? "bg-[var(--color-primary)]/15 font-medium text-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/30"
-                    : "text-[var(--color-foreground)] hover:bg-[var(--color-background)]"
-                }`}
-              >
-                <span className="ml-1.5 text-[var(--color-muted)]">{i + 1}</span>
-                <span className="ml-1 text-[var(--color-muted)]">{t("courses.testPrefix", "Quiz:")}</span>
-                <span>{title}</span>
-                {count > 0 && <span className="mr-0.5 text-[10px] text-[var(--color-muted)]">({count})</span>}
-              </Link>
+              {isLocked ? (
+                <span
+                  className={className}
+                  title={t("courses.contentLocked", "Complete the previous item first")}
+                >
+                  <span className="ml-1.5 text-[var(--color-muted)]">{i + 1}</span>
+                  <span className="ml-1 opacity-70">🔒</span>
+                  <span className="ml-1 text-[var(--color-muted)]">
+                    {t("courses.testPrefix", "Quiz:")}
+                  </span>
+                  <span>{title}</span>
+                </span>
+              ) : (
+                <Link href={quizHref(course, q.id)} className={className}>
+                  <span className="ml-1.5 text-[var(--color-muted)]">{i + 1}</span>
+                  <span className="ml-1 text-[var(--color-muted)]">
+                    {t("courses.testPrefix", "Quiz:")}
+                  </span>
+                  <span>{title}</span>
+                  {count > 0 && (
+                    <span className="mr-0.5 text-[10px] text-[var(--color-muted)]">({count})</span>
+                  )}
+                </Link>
+              )}
             </li>
           );
         })}

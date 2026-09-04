@@ -330,6 +330,8 @@ export interface Course {
   created_by_id: string | null;
   accepts_homework?: boolean;
   rating_required?: boolean;
+  /** أيام صلاحية الوصول بعد التسجيل — null = بدون انتهاء */
+  access_days?: number | null;
   /** متوسط تقييم الكورس المحسوب من كل تقييمات دروسه */
   course_rating?: number | null;
   /** عدد تقييمات الدروس المستخدمة في متوسط الكورس */

@@ -117,6 +117,12 @@ export function mapDraftToFormState(draft: {
           : typeof c.max_quiz_attempts === "number"
             ? String(c.max_quiz_attempts)
             : "",
+      accessDays:
+        typeof c.accessDays === "number"
+          ? String(c.accessDays)
+          : typeof c.access_days === "number"
+            ? String(c.access_days)
+            : "",
       categoryId: String(c.categoryId ?? c.category_id ?? ""),
       categoryNameAr: "",
       categoryNameEn: "",
