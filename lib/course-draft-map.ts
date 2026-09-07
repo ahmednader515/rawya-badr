@@ -123,6 +123,13 @@ export function mapDraftToFormState(draft: {
           : typeof c.access_days === "number"
             ? String(c.access_days)
             : "",
+      certKind: String(c.certKind ?? c.cert_kind ?? ""),
+      creditPoints: (() => {
+        const raw = c.creditPoints ?? c.credit_points;
+        const n = raw != null ? Number(raw) : NaN;
+        return Number.isFinite(n) ? String(n) : "";
+      })(),
+      creditCategory: String(c.creditCategory ?? c.credit_category ?? ""),
       categoryId: String(c.categoryId ?? c.category_id ?? ""),
       categoryNameAr: "",
       categoryNameEn: "",

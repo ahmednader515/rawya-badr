@@ -285,6 +285,16 @@ export interface HomepageSetting {
   certificateNameLeft?: number | null;
   certificateDateTop?: number | null;
   certificateDateLeft?: number | null;
+  certificateCourseCodeTop?: number | null;
+  certificateCourseCodeLeft?: number | null;
+  certificateCourseNameTop?: number | null;
+  certificateCourseNameLeft?: number | null;
+  certificateCertTypeTop?: number | null;
+  certificateCertTypeLeft?: number | null;
+  certificateCreditPointsTop?: number | null;
+  certificateCreditPointsLeft?: number | null;
+  certificateCreditTypeTop?: number | null;
+  certificateCreditTypeLeft?: number | null;
 }
 
 export interface CourseCertificate {
@@ -332,6 +342,14 @@ export interface Course {
   rating_required?: boolean;
   /** أيام صلاحية الوصول بعد التسجيل — null = بدون انتهاء */
   access_days?: number | null;
+  /** معرف عام متسلسل مثل rb-001 */
+  public_code?: string | null;
+  /** CEU أو PDU */
+  cert_kind?: "ceu" | "pdu" | null;
+  /** نقاط الاعتماد (مثل 1.5) */
+  credit_points?: number | null;
+  /** نوع النقاط: general / ethics / supervision */
+  credit_category?: "general" | "ethics" | "supervision" | null;
   /** متوسط تقييم الكورس المحسوب من كل تقييمات دروسه */
   course_rating?: number | null;
   /** عدد تقييمات الدروس المستخدمة في متوسط الكورس */

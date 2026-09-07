@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { getHomepageSettings } from "@/lib/db";
+import { CERTIFICATE_POSITION_DEFAULTS as D } from "@/lib/certificate-layout";
 import { getServerTranslator } from "@/lib/i18n/server";
 import { CertificateSettingsForm } from "./CertificateSettingsForm";
 
@@ -23,10 +24,20 @@ export default async function DashboardCertificateSettingsPage() {
       <CertificateSettingsForm
         initial={{
           certificateBackgroundUrl: settings.certificateBackgroundUrl ?? "",
-          certificateNameTop: settings.certificateNameTop ?? 48,
-          certificateNameLeft: settings.certificateNameLeft ?? 50,
-          certificateDateTop: settings.certificateDateTop ?? 56,
-          certificateDateLeft: settings.certificateDateLeft ?? 50,
+          certificateNameTop: settings.certificateNameTop ?? D.nameTop,
+          certificateNameLeft: settings.certificateNameLeft ?? D.nameLeft,
+          certificateDateTop: settings.certificateDateTop ?? D.dateTop,
+          certificateDateLeft: settings.certificateDateLeft ?? D.dateLeft,
+          certificateCourseCodeTop: settings.certificateCourseCodeTop ?? D.courseCodeTop,
+          certificateCourseCodeLeft: settings.certificateCourseCodeLeft ?? D.courseCodeLeft,
+          certificateCourseNameTop: settings.certificateCourseNameTop ?? D.courseNameTop,
+          certificateCourseNameLeft: settings.certificateCourseNameLeft ?? D.courseNameLeft,
+          certificateCertTypeTop: settings.certificateCertTypeTop ?? D.certTypeTop,
+          certificateCertTypeLeft: settings.certificateCertTypeLeft ?? D.certTypeLeft,
+          certificateCreditPointsTop: settings.certificateCreditPointsTop ?? D.creditPointsTop,
+          certificateCreditPointsLeft: settings.certificateCreditPointsLeft ?? D.creditPointsLeft,
+          certificateCreditTypeTop: settings.certificateCreditTypeTop ?? D.creditTypeTop,
+          certificateCreditTypeLeft: settings.certificateCreditTypeLeft ?? D.creditTypeLeft,
         }}
       />
     </div>

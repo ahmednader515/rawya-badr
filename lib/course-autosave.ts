@@ -114,6 +114,12 @@ export async function autosaveCourse(
     : body.isPublished ??
       Boolean((course as { isPublished?: boolean }).isPublished ?? (course as { is_published?: boolean }).is_published ?? false);
 
+  const {
+    parseCourseCertKind,
+    parseCourseCreditCategory,
+    parseCourseCreditPoints,
+  } = await import("@/lib/course-cert-meta");
+
   await updateCourse(courseId, {
     title: normalized.titleEn,
     title_ar: normalized.titleAr,
@@ -127,6 +133,26 @@ export async function autosaveCourse(
     max_quiz_attempts: normalized.maxQuizAttempts,
     ...(categoryResult.id !== undefined && { category_id: categoryResult.id }),
     ...(body.acceptsHomework !== undefined && { accepts_homework: body.acceptsHomework }),
+    ...(body.ratingRequired !== undefined && { rating_required: body.ratingRequired }),
+    ...(body.accessDays !== undefined && {
+      access_days:
+        body.accessDays === null
+          ? null
+          : (() => {
+              const n = Number(body.accessDays);
+              return Number.isFinite(n) && n >= 1 ? Math.min(3650, Math.floor(n)) : null;
+            })(),
+    }),
+    ...(body.certKind !== undefined && {
+      cert_kind: parseCourseCertKind(body.certKind),
+    }),
+    ...(body.creditPoints !== undefined && {
+      credit_points:
+        body.creditPoints === null ? null : parseCourseCreditPoints(body.creditPoints),
+    }),
+    ...(body.creditCategory !== undefined && {
+      credit_category: parseCourseCreditCategory(body.creditCategory),
+    }),
   });
 
   await saveCourseLessonsAndQuizzes(courseId, slug, lessons, quizzes, contentOrder, saveDeps);

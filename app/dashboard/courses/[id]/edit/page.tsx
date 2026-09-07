@@ -74,6 +74,25 @@ export default async function EditCoursePage({ params }: Props) {
         : typeof c.access_days === "number"
           ? c.access_days
           : null,
+    publicCode:
+      (c.publicCode as string | null | undefined) ??
+      (c.public_code as string | null | undefined) ??
+      null,
+    certKind: String(
+      (c.certKind as string | null | undefined) ??
+        (c.cert_kind as string | null | undefined) ??
+        "",
+    ),
+    creditPoints: (() => {
+      const raw = c.creditPoints ?? c.credit_points;
+      const n = raw != null ? Number(raw) : NaN;
+      return Number.isFinite(n) ? String(n) : "";
+    })(),
+    creditCategory: String(
+      (c.creditCategory as string | null | undefined) ??
+        (c.credit_category as string | null | undefined) ??
+        "",
+    ),
     maxQuizAttempts: typeof c.maxQuizAttempts === "number" ? c.maxQuizAttempts : typeof c.max_quiz_attempts === "number" ? c.max_quiz_attempts : null,
     categoryId: (c.categoryId ?? c.category_id ?? "") as string,
     lessons: data.lessons.map((l) => {

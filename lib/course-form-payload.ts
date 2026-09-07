@@ -35,6 +35,9 @@ export type CourseFormCoreState = {
   isPublished?: boolean;
   ratingRequired?: boolean;
   accessDays?: number | null;
+  certKind?: string | null;
+  creditPoints?: number | null;
+  creditCategory?: string | null;
 };
 
 export function buildCourseAutosavePayload(state: CourseFormCoreState): CourseAutosaveBody {
@@ -51,6 +54,9 @@ export function buildCourseAutosavePayload(state: CourseFormCoreState): CourseAu
     isPublished: state.isPublished,
     ratingRequired: state.ratingRequired,
     accessDays: state.accessDays ?? null,
+    certKind: state.certKind ?? null,
+    creditPoints: state.creditPoints ?? null,
+    creditCategory: state.creditCategory ?? null,
     ...(state.form.categoryNameAr.trim() || state.form.categoryNameEn.trim()
       ? { categoryNameAr: state.form.categoryNameAr.trim(), categoryNameEn: state.form.categoryNameEn.trim() }
       : state.form.categoryId

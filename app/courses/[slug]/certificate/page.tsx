@@ -13,10 +13,19 @@ import {
   issueCourseCertificateIfEligible,
   getEnrollment,
   hasFullCourseAccessAsStudent,
+  ensureCourseCertMetaColumns,
 } from "@/lib/db";
 import { CertificateView } from "@/components/CertificateView";
 import { CertificateDownloadButton } from "@/components/CertificateDownloadButton";
 import { getServerTranslator } from "@/lib/i18n/server";
+import {
+  formatCertKindLabel,
+  formatCreditCategoryLabel,
+  formatCreditPointsLabel,
+  parseCourseCertKind,
+  parseCourseCreditCategory,
+  parseCourseCreditPoints,
+} from "@/lib/course-cert-meta";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -50,6 +59,7 @@ export default async function CourseCertificatePage({ params }: Props) {
 
   const t = await getServerTranslator();
   const { slug: segment } = await params;
+  await ensureCourseCertMetaColumns();
   const data = await getCourseWithContent(decodeSlug(segment));
   if (!data?.course) notFound();
 
@@ -99,6 +109,17 @@ export default async function CourseCertificatePage({ params }: Props) {
         ? new Date(String(issuedAtRaw))
         : new Date();
 
+  const courseRec = course as unknown as Record<string, unknown>;
+  const courseCode = String(courseRec.publicCode ?? courseRec.public_code ?? "").trim();
+  const courseName =
+    String(courseRec.title ?? "").trim() ||
+    String(courseRec.titleAr ?? courseRec.title_ar ?? "").trim();
+  const certKind = parseCourseCertKind(courseRec.certKind ?? courseRec.cert_kind);
+  const creditPoints = parseCourseCreditPoints(courseRec.creditPoints ?? courseRec.credit_points);
+  const creditCategory = parseCourseCreditCategory(
+    courseRec.creditCategory ?? courseRec.credit_category,
+  );
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 print:max-w-none">
       <div className="mb-6 print:hidden">
@@ -118,6 +139,13 @@ export default async function CourseCertificatePage({ params }: Props) {
         studentName={user?.name ?? session.user.name ?? ""}
         issuedAt={Number.isNaN(issuedAt.getTime()) ? new Date() : issuedAt}
         template={template}
+        course={{
+          courseCode,
+          courseName,
+          certTypeLabel: formatCertKindLabel(certKind),
+          creditPointsLabel: formatCreditPointsLabel(creditPoints),
+          creditTypeLabel: formatCreditCategoryLabel(creditCategory),
+        }}
       />
 
       <div className="mt-8 flex flex-col items-center gap-3 print:hidden">

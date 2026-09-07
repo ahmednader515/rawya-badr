@@ -37,6 +37,9 @@ export type CourseAutosaveBody = {
   isPublished?: boolean;
   ratingRequired?: boolean;
   accessDays?: number | null;
+  certKind?: string | null;
+  creditPoints?: number | null;
+  creditCategory?: string | null;
   maxQuizAttempts?: number | null;
   categoryId?: string | null;
   categoryNameAr?: string;

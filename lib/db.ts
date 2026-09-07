@@ -958,6 +958,16 @@ const HOMEPAGE_DEFAULTS: HomepageSetting = {
   certificateNameLeft: 50,
   certificateDateTop: 56,
   certificateDateLeft: 50,
+  certificateCourseCodeTop: 62,
+  certificateCourseCodeLeft: 50,
+  certificateCourseNameTop: 68,
+  certificateCourseNameLeft: 50,
+  certificateCertTypeTop: 74,
+  certificateCertTypeLeft: 50,
+  certificateCreditPointsTop: 80,
+  certificateCreditPointsLeft: 50,
+  certificateCreditTypeTop: 86,
+  certificateCreditTypeLeft: 50,
 };
 
 /** أعمدة نص قسم التعليقات في الصفحة الرئيسية */
@@ -1243,6 +1253,16 @@ async function ensureCertificateTemplateColumns(): Promise<void> {
       await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_name_left REAL`;
       await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_date_top REAL`;
       await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_date_left REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_course_code_top REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_course_code_left REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_course_name_top REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_course_name_left REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_cert_type_top REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_cert_type_left REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_credit_points_top REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_credit_points_left REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_credit_type_top REAL`;
+      await sql`ALTER TABLE "HomepageSetting" ADD COLUMN IF NOT EXISTS certificate_credit_type_left REAL`;
     } catch {
       /* DDL غير متاح */
     }
@@ -2017,6 +2037,46 @@ async function fetchHomepageSettingsFromDb(): Promise<HomepageSetting> {
         row.certificate_date_left != null && Number.isFinite(Number(row.certificate_date_left))
           ? Number(row.certificate_date_left)
           : HOMEPAGE_DEFAULTS.certificateDateLeft ?? 50,
+      certificateCourseCodeTop:
+        row.certificate_course_code_top != null && Number.isFinite(Number(row.certificate_course_code_top))
+          ? Number(row.certificate_course_code_top)
+          : HOMEPAGE_DEFAULTS.certificateCourseCodeTop ?? 62,
+      certificateCourseCodeLeft:
+        row.certificate_course_code_left != null && Number.isFinite(Number(row.certificate_course_code_left))
+          ? Number(row.certificate_course_code_left)
+          : HOMEPAGE_DEFAULTS.certificateCourseCodeLeft ?? 50,
+      certificateCourseNameTop:
+        row.certificate_course_name_top != null && Number.isFinite(Number(row.certificate_course_name_top))
+          ? Number(row.certificate_course_name_top)
+          : HOMEPAGE_DEFAULTS.certificateCourseNameTop ?? 68,
+      certificateCourseNameLeft:
+        row.certificate_course_name_left != null && Number.isFinite(Number(row.certificate_course_name_left))
+          ? Number(row.certificate_course_name_left)
+          : HOMEPAGE_DEFAULTS.certificateCourseNameLeft ?? 50,
+      certificateCertTypeTop:
+        row.certificate_cert_type_top != null && Number.isFinite(Number(row.certificate_cert_type_top))
+          ? Number(row.certificate_cert_type_top)
+          : HOMEPAGE_DEFAULTS.certificateCertTypeTop ?? 74,
+      certificateCertTypeLeft:
+        row.certificate_cert_type_left != null && Number.isFinite(Number(row.certificate_cert_type_left))
+          ? Number(row.certificate_cert_type_left)
+          : HOMEPAGE_DEFAULTS.certificateCertTypeLeft ?? 50,
+      certificateCreditPointsTop:
+        row.certificate_credit_points_top != null && Number.isFinite(Number(row.certificate_credit_points_top))
+          ? Number(row.certificate_credit_points_top)
+          : HOMEPAGE_DEFAULTS.certificateCreditPointsTop ?? 80,
+      certificateCreditPointsLeft:
+        row.certificate_credit_points_left != null && Number.isFinite(Number(row.certificate_credit_points_left))
+          ? Number(row.certificate_credit_points_left)
+          : HOMEPAGE_DEFAULTS.certificateCreditPointsLeft ?? 50,
+      certificateCreditTypeTop:
+        row.certificate_credit_type_top != null && Number.isFinite(Number(row.certificate_credit_type_top))
+          ? Number(row.certificate_credit_type_top)
+          : HOMEPAGE_DEFAULTS.certificateCreditTypeTop ?? 86,
+      certificateCreditTypeLeft:
+        row.certificate_credit_type_left != null && Number.isFinite(Number(row.certificate_credit_type_left))
+          ? Number(row.certificate_credit_type_left)
+          : HOMEPAGE_DEFAULTS.certificateCreditTypeLeft ?? 50,
     };
   } catch {
     return HOMEPAGE_DEFAULTS;
@@ -2168,6 +2228,16 @@ export async function updateHomepageSettings(data: {
   certificate_name_left?: number | null;
   certificate_date_top?: number | null;
   certificate_date_left?: number | null;
+  certificate_course_code_top?: number | null;
+  certificate_course_code_left?: number | null;
+  certificate_course_name_top?: number | null;
+  certificate_course_name_left?: number | null;
+  certificate_cert_type_top?: number | null;
+  certificate_cert_type_left?: number | null;
+  certificate_credit_points_top?: number | null;
+  certificate_credit_points_left?: number | null;
+  certificate_credit_type_top?: number | null;
+  certificate_credit_type_left?: number | null;
   platform_news_enabled?: boolean;
   platform_news_items?: string | null;
   platform_news_section_title?: string | null;
@@ -2627,6 +2697,46 @@ export async function updateHomepageSettings(data: {
   if (data.certificate_date_left !== undefined) {
     await ensureCertificateTemplateColumns();
     await sql`UPDATE "HomepageSetting" SET certificate_date_left = ${data.certificate_date_left}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_course_code_top !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_course_code_top = ${data.certificate_course_code_top}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_course_code_left !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_course_code_left = ${data.certificate_course_code_left}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_course_name_top !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_course_name_top = ${data.certificate_course_name_top}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_course_name_left !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_course_name_left = ${data.certificate_course_name_left}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_cert_type_top !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_cert_type_top = ${data.certificate_cert_type_top}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_cert_type_left !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_cert_type_left = ${data.certificate_cert_type_left}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_credit_points_top !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_credit_points_top = ${data.certificate_credit_points_top}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_credit_points_left !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_credit_points_left = ${data.certificate_credit_points_left}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_credit_type_top !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_credit_type_top = ${data.certificate_credit_type_top}, updated_at = NOW() WHERE id = 'default'`;
+  }
+  if (data.certificate_credit_type_left !== undefined) {
+    await ensureCertificateTemplateColumns();
+    await sql`UPDATE "HomepageSetting" SET certificate_credit_type_left = ${data.certificate_credit_type_left}, updated_at = NOW() WHERE id = 'default'`;
   }
   revalidateHomepageCaches();
 }
@@ -3746,10 +3856,15 @@ export async function createCourse(data: {
   category_id?: string | null;
   accepts_homework?: boolean;
   access_days?: number | null;
+  cert_kind?: "ceu" | "pdu" | null;
+  credit_points?: number | null;
+  credit_category?: "general" | "ethics" | "supervision" | null;
 }): Promise<Course> {
   await ensureCourseBilingualColumns();
   await ensureCourseAccessDaysColumn();
+  await ensureCourseCertMetaColumns();
   const id = generateId();
+  const publicCode = await allocateNextCoursePublicCode();
   const catId = data.category_id ?? null;
   const acceptsHomework = data.accepts_homework ?? false;
   let rows: Record<string, unknown>[];
@@ -3794,6 +3909,23 @@ export async function createCourse(data: {
       /* column may be unavailable */
     }
   }
+  try {
+    await sql`
+      UPDATE "Course" SET
+        public_code = COALESCE(public_code, ${publicCode}),
+        cert_kind = ${data.cert_kind ?? null},
+        credit_points = ${data.credit_points ?? null},
+        credit_category = ${data.credit_category ?? null},
+        updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    (c as { public_code?: string | null }).public_code = publicCode;
+    (c as { cert_kind?: string | null }).cert_kind = data.cert_kind ?? null;
+    (c as { credit_points?: number | null }).credit_points = data.credit_points ?? null;
+    (c as { credit_category?: string | null }).credit_category = data.credit_category ?? null;
+  } catch {
+    /* columns may be unavailable */
+  }
   revalidateHomepageCaches();
   return c;
 }
@@ -3815,10 +3947,14 @@ export async function updateCourse(
     accepts_homework?: boolean;
     rating_required?: boolean;
     access_days?: number | null;
+    cert_kind?: "ceu" | "pdu" | null;
+    credit_points?: number | null;
+    credit_category?: "general" | "ethics" | "supervision" | null;
   }
 ): Promise<void> {
   await ensureCourseBilingualColumns();
   await ensureCourseAccessDaysColumn();
+  await ensureCourseCertMetaColumns();
   if (data.title !== undefined) await sql`UPDATE "Course" SET title = ${data.title}, updated_at = NOW() WHERE id = ${id}`;
   if (data.title_ar !== undefined) await sql`UPDATE "Course" SET title_ar = ${data.title_ar}, updated_at = NOW() WHERE id = ${id}`;
   if (data.description !== undefined) await sql`UPDATE "Course" SET description = ${data.description}, updated_at = NOW() WHERE id = ${id}`;
@@ -3852,6 +3988,38 @@ export async function updateCourse(
     } catch {
       /* DDL unavailable */
     }
+  }
+  if (data.cert_kind !== undefined) {
+    try {
+      await sql`UPDATE "Course" SET cert_kind = ${data.cert_kind}, updated_at = NOW() WHERE id = ${id}`;
+    } catch {
+      /* DDL unavailable */
+    }
+  }
+  if (data.credit_points !== undefined) {
+    try {
+      await sql`UPDATE "Course" SET credit_points = ${data.credit_points}, updated_at = NOW() WHERE id = ${id}`;
+    } catch {
+      /* DDL unavailable */
+    }
+  }
+  if (data.credit_category !== undefined) {
+    try {
+      await sql`UPDATE "Course" SET credit_category = ${data.credit_category}, updated_at = NOW() WHERE id = ${id}`;
+    } catch {
+      /* DDL unavailable */
+    }
+  }
+  // Ensure every course has a public_code
+  try {
+    const rows = await sql`SELECT public_code FROM "Course" WHERE id = ${id} LIMIT 1`;
+    const code = (rows[0] as { public_code?: string | null } | undefined)?.public_code;
+    if (!code) {
+      const next = await allocateNextCoursePublicCode();
+      await sql`UPDATE "Course" SET public_code = ${next}, updated_at = NOW() WHERE id = ${id} AND public_code IS NULL`;
+    }
+  } catch {
+    /* ignore */
   }
   revalidateHomepageCaches();
 }
@@ -3983,6 +4151,7 @@ export async function getCourseForEdit(courseId: string): Promise<{
   lessons: Record<string, unknown>[];
   quizzes: Array<Record<string, unknown> & { questions: Array<Record<string, unknown> & { options: Record<string, unknown>[] }> }>;
 } | null> {
+  await ensureCourseCertMetaColumns();
   const courseRows = await sql`SELECT * FROM "Course" WHERE id = ${courseId} LIMIT 1`;
   const courseRow = courseRows[0] as Record<string, unknown> | undefined;
   if (!courseRow) return null;
@@ -4153,6 +4322,53 @@ async function ensureCourseAccessDaysColumn(): Promise<void> {
       /* DDL unavailable */
     }
   });
+}
+
+export async function ensureCourseCertMetaColumns(): Promise<void> {
+  return ensureOnce("ensureCourseCertMetaColumns", async () => {
+    try {
+      await sql`ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS public_code VARCHAR(32)`;
+      await sql`ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS cert_kind VARCHAR(8)`;
+      await sql`ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS credit_points NUMERIC(6,1)`;
+      await sql`ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS credit_category VARCHAR(20)`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS "Course_public_code_uidx" ON "Course"(public_code) WHERE public_code IS NOT NULL`;
+    } catch {
+      /* DDL unavailable */
+    }
+    // Backfill missing public codes for existing courses (stable order by created_at)
+    try {
+      const missing = await sql`
+        SELECT id FROM "Course" WHERE public_code IS NULL ORDER BY created_at ASC, id ASC
+      `;
+      if ((missing as { id: string }[]).length === 0) return;
+      const { formatCoursePublicCode, parseCoursePublicCodeSeq } = await import("@/lib/course-cert-meta");
+      const existing = await sql`SELECT public_code FROM "Course" WHERE public_code IS NOT NULL`;
+      let maxSeq = 0;
+      for (const row of existing as { public_code?: string }[]) {
+        const seq = parseCoursePublicCodeSeq(row.public_code);
+        if (seq != null && seq > maxSeq) maxSeq = seq;
+      }
+      for (const row of missing as { id: string }[]) {
+        maxSeq += 1;
+        const code = formatCoursePublicCode(maxSeq);
+        await sql`UPDATE "Course" SET public_code = ${code} WHERE id = ${row.id} AND public_code IS NULL`;
+      }
+    } catch {
+      /* ignore backfill errors */
+    }
+  });
+}
+
+export async function allocateNextCoursePublicCode(): Promise<string> {
+  await ensureCourseCertMetaColumns();
+  const { formatCoursePublicCode, parseCoursePublicCodeSeq } = await import("@/lib/course-cert-meta");
+  const rows = await sql`SELECT public_code FROM "Course" WHERE public_code IS NOT NULL`;
+  let maxSeq = 0;
+  for (const row of rows as { public_code?: string }[]) {
+    const seq = parseCoursePublicCodeSeq(row.public_code);
+    if (seq != null && seq > maxSeq) maxSeq = seq;
+  }
+  return formatCoursePublicCode(maxSeq + 1);
 }
 
 /** Parse access_days: positive integer, or null for unlimited. */

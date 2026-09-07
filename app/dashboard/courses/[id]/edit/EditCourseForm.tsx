@@ -34,6 +34,10 @@ type InitialData = {
   isPublished: boolean;
   ratingRequired: boolean;
   accessDays: number | null;
+  publicCode: string | null;
+  certKind: string;
+  creditPoints: string;
+  creditCategory: string;
   maxQuizAttempts: number | null;
   categoryId: string;
   lessons: LessonRow[];
@@ -75,6 +79,9 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
     isPublished: initialData.isPublished,
     ratingRequired: initialData.ratingRequired,
     accessDays: initialData.accessDays != null ? String(initialData.accessDays) : "",
+    certKind: initialData.certKind || "",
+    creditPoints: initialData.creditPoints != null ? String(initialData.creditPoints) : "",
+    creditCategory: initialData.creditCategory || "",
     maxQuizAttempts: initialData.maxQuizAttempts != null ? String(initialData.maxQuizAttempts) : "",
     categoryId: initialData.categoryId ?? "",
     categoryNameAr: "",
@@ -178,6 +185,11 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
         accessDays: formRef.current.accessDays.trim()
           ? parseInt(formRef.current.accessDays, 10)
           : null,
+        certKind: formRef.current.certKind || null,
+        creditPoints: formRef.current.creditPoints.trim()
+          ? Number(formRef.current.creditPoints)
+          : null,
+        creditCategory: formRef.current.creditCategory || null,
       }),
     [],
   );
@@ -363,6 +375,9 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
       isPublished: form.isPublished,
       ratingRequired: form.ratingRequired,
       accessDays: form.accessDays.trim() ? parseInt(form.accessDays, 10) : null,
+      certKind: form.certKind || null,
+      creditPoints: form.creditPoints.trim() ? Number(form.creditPoints) : null,
+      creditCategory: form.creditCategory || null,
       maxQuizAttempts: form.maxQuizAttempts.trim() ? parseInt(form.maxQuizAttempts, 10) : null,
       ...(form.categoryNameAr.trim() || form.categoryNameEn.trim()
         ? { categoryNameAr: form.categoryNameAr.trim(), categoryNameEn: form.categoryNameEn.trim() }
@@ -547,6 +562,67 @@ export function EditCourseForm({ courseId, initialData }: { courseId: string; in
                 "How many days a student can access the course after enrollment. Leave blank for no expiry.",
               )}
             </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-foreground)]">
+              {t(`${Cf}.publicCodeLabel`, "Course ID")}
+            </label>
+            <input
+              type="text"
+              value={initialData.publicCode ?? "—"}
+              readOnly
+              className="mt-1 w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)]/60 px-3 py-2 text-sm text-[var(--color-muted)]"
+            />
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              {t(`${Cf}.publicCodeHint`, "Auto-assigned (rb-001, rb-002, …). Shown on the certificate.")}
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-foreground)]">
+              {t(`${Cf}.certKindLabel`, "Certificate type")}
+            </label>
+            <select
+              value={form.certKind}
+              onChange={(e) => setForm((f) => ({ ...f, certKind: e.target.value }))}
+              className="mt-1 w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2"
+            >
+              <option value="">{t(`${Cf}.certKindNone`, "Select…")}</option>
+              <option value="ceu">CEU</option>
+              <option value="pdu">PDU</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-foreground)]">
+              {t(`${Cf}.creditPointsLabel`, "Credit points")}
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="999.9"
+              step="0.5"
+              placeholder="0"
+              value={form.creditPoints}
+              onChange={(e) => setForm((f) => ({ ...f, creditPoints: e.target.value }))}
+              className="mt-1 w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2"
+            />
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              {t(`${Cf}.creditPointsHint`, "Examples: 0, 1, 1.5, 2")}
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-foreground)]">
+              {t(`${Cf}.creditCategoryLabel`, "Credit type")}
+            </label>
+            <select
+              value={form.creditCategory}
+              onChange={(e) => setForm((f) => ({ ...f, creditCategory: e.target.value }))}
+              className="mt-1 w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2"
+            >
+              <option value="">{t(`${Cf}.creditCategoryNone`, "Select…")}</option>
+              <option value="general">General</option>
+              <option value="ethics">Ethics</option>
+              <option value="supervision">Supervision</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--color-foreground)]">{t(`${Cf}.titleArRequired`)}</label>

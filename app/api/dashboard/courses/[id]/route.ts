@@ -17,6 +17,11 @@ import {
   createCategory,
   categoryIsManageableOnDashboard,
 } from "@/lib/db";
+import {
+  parseCourseCertKind,
+  parseCourseCreditCategory,
+  parseCourseCreditPoints,
+} from "@/lib/course-cert-meta";
 
 type LessonInput = { title: string; titleAr?: string; videoUrl?: string; content?: string; pdfUrl?: string; acceptsHomework?: boolean; homeworkImageUrl?: string };
 type QuestionOptionInput = { text: string; isCorrect: boolean };
@@ -56,6 +61,9 @@ export async function PUT(
     acceptsHomework?: boolean;
     ratingRequired?: boolean;
     accessDays?: number | null | string;
+    certKind?: string | null;
+    creditPoints?: number | null | string;
+    creditCategory?: string | null;
     lessons?: LessonInput[];
     quizzes?: QuizInput[];
     contentOrder?: ContentOrderEntry[];
@@ -146,6 +154,18 @@ export async function PUT(
               const n = Number(body.accessDays);
               return Number.isFinite(n) && n >= 1 ? Math.min(3650, Math.floor(n)) : null;
             })(),
+    }),
+    ...(body.certKind !== undefined && {
+      cert_kind: parseCourseCertKind(body.certKind),
+    }),
+    ...(body.creditPoints !== undefined && {
+      credit_points:
+        body.creditPoints === null || body.creditPoints === ""
+          ? null
+          : parseCourseCreditPoints(body.creditPoints),
+    }),
+    ...(body.creditCategory !== undefined && {
+      credit_category: parseCourseCreditCategory(body.creditCategory),
     }),
   });
 
@@ -263,6 +283,25 @@ export async function GET(
         : typeof (c as { access_days?: number | null }).access_days === "number"
           ? (c as { access_days: number }).access_days
           : null,
+    publicCode:
+      (c as { publicCode?: string | null; public_code?: string | null }).publicCode ??
+      (c as { public_code?: string | null }).public_code ??
+      null,
+    certKind:
+      (c as { certKind?: string | null; cert_kind?: string | null }).certKind ??
+      (c as { cert_kind?: string | null }).cert_kind ??
+      null,
+    creditPoints: (() => {
+      const raw =
+        (c as { creditPoints?: unknown; credit_points?: unknown }).creditPoints ??
+        (c as { credit_points?: unknown }).credit_points;
+      const n = raw != null ? Number(raw) : NaN;
+      return Number.isFinite(n) ? n : null;
+    })(),
+    creditCategory:
+      (c as { creditCategory?: string | null; credit_category?: string | null }).creditCategory ??
+      (c as { credit_category?: string | null }).credit_category ??
+      null,
     categoryId: (c as { categoryId?: string | null }).categoryId ?? null,
     lessons: data.lessons.map((l) => ({
       title: l.title,
