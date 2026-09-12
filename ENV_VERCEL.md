@@ -16,6 +16,11 @@
 | **VDOCIPHER_API_KEY** | مفتاح VdoCipher API Secret (من لوحة VdoCipher → Config). **لا تضعه في كود الواجهة** — يُستخدم على الخادم فقط لرفع الفيديوهات وتوليد OTP التشغيل | Production + Preview |
 | **VDOCIPHER_DRM_SENTINEL_VIDEO_ID** | (اختياري) معرّف فيديو قصير (ثانية واحدة، أسود/صامت) مرفوع على VdoCipher — يُشغَّل مخفياً للزوار والطلاب على الصفحات العامة لتفعيل Widevine ومنع بدء التسجيل | Production + Preview |
 | **VDOCIPHER_PLAYER_ID** | (اختياري) معرّف التصميم المخصص للمشغّل من لوحة VdoCipher → Custom Player | Production + Preview |
+| **FAWATERAK_VENDOR_KEY** | مفتاح Vendor من فواتيرك (HMAC + Bearer). يمكن أيضاً استخدام `FAWATERAK_API_KEY` | Production + Preview |
+| **FAWATERAK_PROVIDER_KEY** | مفتاح Provider من فواتيرك (لحساب hash الـ iframe) | Production + Preview |
+| **NEXT_PUBLIC_APP_URL** | عنوان الموقع العام بدون شرطة في النهاية، مثل `https://your-domain.com` (مطلوب للدفع) | Production + Preview |
+| **FAWATERAK_ENV** | (اختياري) `staging` (افتراضي) أو `live` | Production + Preview |
+| **FAWATERAK_IFRAME_DOMAIN** | (اختياري) تجاوز دومين الـ iframe إن لزم | Production + Preview |
 
 4. اضغط **Save** بعد كل متغير.
 5. من **Deployments** → اختر آخر نشر → **⋯** → **Redeploy** (لتحميل المتغيرات الجديدة).
@@ -27,6 +32,7 @@
 - **VDOCIPHER_API_KEY** مطلوب لتشغيل ورفع فيديوهات الحصص. يمكن أيضاً استخدام الاسم `vdocipher_api_key` محلياً.
 - **VDOCIPHER_DRM_SENTINEL_VIDEO_ID**: ارفع فيديو أسود صامت (~1 ثانية) عبر لوحة VdoCipher أو API، انسخ `videoId`، ثم أضفه هنا. بدون هذا المتغير تبقى حماية التسجيل على صفحة الحصة فقط. يُفعَّل للزوار غير المسجّلين والطلاب؛ لا يُحمَّل للأدمن والمعلّمين.
 - **VDOCIPHER_PLAYER_ID**: انسخ معرّف التصميم من لوحة VdoCipher → Custom Player. يُطبَّق على مشغّل الحصص والمعاينة والـ DRM sentinel. يمكن أيضاً استخدام `vdocipher_player_id` محلياً.
+- **Fawaterak**: في لوحة فواتيرك سجّل **IFRAM Domains** = أصل موقعك HTTPS، و**Paid webhook** = `https://your-domain.com/api/webhooks/fawaterak_json`. الرصيد يُضاف فقط عبر الـ webhook وليس عبر صفحة النجاح. للتحقق: `node scripts/verify-fawaterak.mjs https://your-domain.com`
 - بعد إضافة المتغيرات يجب **Redeploy** حتى تُطبَّق على النسخة المرفوعة.
 
 ## التحقق

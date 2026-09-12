@@ -29,6 +29,9 @@ import type {
   Message,
   SubscriptionDurationKind,
   PlatformDetailsItem,
+  FawaterakDeposit,
+  FawaterakDepositStatus,
+  FawaterakDepositKind,
 } from "./types";
 import { generateCopyrightCodeCandidate } from "./copyright-code";
 import {
@@ -5995,4 +5998,156 @@ export async function createMessage(data: {
   await sql`UPDATE "Conversation" SET updated_at = NOW() WHERE id = ${data.conversation_id}`;
   const rows = await sql`SELECT * FROM "Message" WHERE id = ${id} LIMIT 1`;
   return rowToCamel(rows[0] as Record<string, unknown>) as Message;
+}
+
+// ----- Fawaterak deposits & balance ledger -----
+
+async function ensureFawaterakTables(): Promise<void> {
+  return ensureOnce("ensureFawaterakTables", async () => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS "FawaterakDeposit" (
+        id               TEXT PRIMARY KEY,
+        user_id          TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        amount           DECIMAL(10, 2) NOT NULL,
+        status           TEXT NOT NULL DEFAULT 'PENDING',
+        kind             TEXT NOT NULL DEFAULT 'BALANCE_TOPUP',
+        invoice_id       TEXT UNIQUE,
+        invoice_key      TEXT,
+        reference_number TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS "BalanceTransaction" (
+        id           TEXT PRIMARY KEY,
+        user_id      TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+        amount       DECIMAL(10, 2) NOT NULL,
+        type         TEXT NOT NULL,
+        source       TEXT NOT NULL,
+        reference_id TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_fawaterak_deposit_user_id ON "FawaterakDeposit"(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_fawaterak_deposit_status ON "FawaterakDeposit"(status)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_balance_transaction_user_id ON "BalanceTransaction"(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_balance_transaction_reference ON "BalanceTransaction"(reference_id)`;
+  });
+}
+
+function mapFawaterakDepositRow(row: Record<string, unknown>): FawaterakDeposit {
+  const c = rowToCamel(row) as Record<string, unknown>;
+  return {
+    id: String(c.id),
+    userId: String(c.userId),
+    amount: String(c.amount),
+    status: c.status as FawaterakDepositStatus,
+    kind: c.kind as FawaterakDepositKind,
+    invoiceId: c.invoiceId != null ? String(c.invoiceId) : null,
+    invoiceKey: c.invoiceKey != null ? String(c.invoiceKey) : null,
+    referenceNumber: c.referenceNumber != null ? String(c.referenceNumber) : null,
+    createdAt: c.createdAt as Date,
+    updatedAt: c.updatedAt as Date,
+  };
+}
+
+export async function createFawaterakDeposit(data: {
+  userId: string;
+  amount: number;
+  kind?: FawaterakDepositKind;
+}): Promise<FawaterakDeposit> {
+  await ensureFawaterakTables();
+  const id = generateId();
+  const kind = data.kind ?? "BALANCE_TOPUP";
+  await sql`
+    INSERT INTO "FawaterakDeposit" (id, user_id, amount, status, kind, created_at, updated_at)
+    VALUES (${id}, ${data.userId}, ${data.amount}, 'PENDING', ${kind}, NOW(), NOW())
+  `;
+  const rows = await sql`SELECT * FROM "FawaterakDeposit" WHERE id = ${id} LIMIT 1`;
+  return mapFawaterakDepositRow(rows[0] as Record<string, unknown>);
+}
+
+export async function getFawaterakDepositById(id: string): Promise<FawaterakDeposit | null> {
+  await ensureFawaterakTables();
+  const rows = await sql`SELECT * FROM "FawaterakDeposit" WHERE id = ${id} LIMIT 1`;
+  const row = rows[0] as Record<string, unknown> | undefined;
+  return row ? mapFawaterakDepositRow(row) : null;
+}
+
+export async function getFawaterakDepositByInvoiceId(
+  invoiceId: string,
+): Promise<FawaterakDeposit | null> {
+  await ensureFawaterakTables();
+  const rows = await sql`SELECT * FROM "FawaterakDeposit" WHERE invoice_id = ${invoiceId} LIMIT 1`;
+  const row = rows[0] as Record<string, unknown> | undefined;
+  return row ? mapFawaterakDepositRow(row) : null;
+}
+
+export type CompleteFawaterakDepositResult =
+  | { status: "completed"; deposit: FawaterakDeposit }
+  | { status: "already_completed"; deposit: FawaterakDeposit }
+  | { status: "invoice_conflict"; existingDepositId: string }
+  | { status: "not_found" }
+  | { status: "user_mismatch" }
+  | { status: "kind_mismatch" };
+
+export async function completeFawaterakDeposit(params: {
+  depositId: string;
+  userId: string;
+  kind: FawaterakDepositKind;
+  invoiceId: string;
+  invoiceKey: string;
+  referenceNumber?: string | null;
+}): Promise<CompleteFawaterakDepositResult> {
+  await ensureFawaterakTables();
+
+  const deposit = await getFawaterakDepositById(params.depositId);
+  if (!deposit) return { status: "not_found" };
+  if (deposit.userId !== params.userId) return { status: "user_mismatch" };
+  if (deposit.kind !== params.kind) return { status: "kind_mismatch" };
+
+  if (deposit.status === "COMPLETED") {
+    return { status: "already_completed", deposit };
+  }
+
+  const existingByInvoice = await getFawaterakDepositByInvoiceId(params.invoiceId);
+  if (existingByInvoice && existingByInvoice.id !== params.depositId) {
+    return { status: "invoice_conflict", existingDepositId: existingByInvoice.id };
+  }
+
+  const claimRows = await sql`
+    UPDATE "FawaterakDeposit"
+    SET status = 'COMPLETED',
+        invoice_id = ${params.invoiceId},
+        invoice_key = ${params.invoiceKey},
+        reference_number = ${params.referenceNumber ?? null},
+        updated_at = NOW()
+    WHERE id = ${params.depositId} AND status = 'PENDING'
+    RETURNING *
+  `;
+
+  if (claimRows.length === 0) {
+    const refreshed = await getFawaterakDepositById(params.depositId);
+    if (refreshed?.status === "COMPLETED") {
+      return { status: "already_completed", deposit: refreshed };
+    }
+    return { status: "not_found" };
+  }
+
+  const amount = Number(deposit.amount);
+  const userRows = await sql`SELECT balance FROM "User" WHERE id = ${params.userId} LIMIT 1`;
+  const currentBalance = Number((userRows[0] as { balance: unknown })?.balance ?? 0);
+  const newBalance = String(Math.max(0, currentBalance + amount));
+
+  await sql`UPDATE "User" SET balance = ${newBalance}, updated_at = NOW() WHERE id = ${params.userId}`;
+
+  const txId = generateId();
+  await sql`
+    INSERT INTO "BalanceTransaction" (id, user_id, amount, type, source, reference_id, created_at)
+    VALUES (${txId}, ${params.userId}, ${amount}, 'CREDIT', 'FAWATERAK_TOPUP', ${params.depositId}, NOW())
+  `;
+
+  const completed = mapFawaterakDepositRow(claimRows[0] as Record<string, unknown>);
+  return { status: "completed", deposit: completed };
 }

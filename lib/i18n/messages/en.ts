@@ -48,6 +48,11 @@ export const enMessages: Messages = {
     defaultTitle: "My Learning Platform",
     defaultTagline: "Learn with a modern and clear method",
     defaultCopyright: "My Learning Platform. All rights reserved.",
+    linksLabel: "Footer links",
+    privacyPolicy: "Privacy Policy",
+    terms: "Terms and Conditions",
+    refundPolicy: "Refund Policy",
+    contact: "Contact",
   },
   auth: {
     login: {
@@ -305,6 +310,30 @@ export const enMessages: Messages = {
       copiedWallet: "Copied",
       copyWalletAria: "Copy wallet number",
       copyInstapayAria: "Copy InstaPay address",
+      manualDivider: "Or pay manually",
+      fawaterak: {
+        amountLabel: "Amount",
+        amountPlaceholder: "100",
+        continueButton: "Continue to payment",
+        minMaxHint: "Enter an amount between 1 and 200,000 EGP",
+        checkoutTitle: "Complete payment",
+        payButton: "Pay with Fawaterak",
+        loading: "Loading…",
+        backToAddBalance: "← Back to add balance",
+        errorGeneric: "Could not start payment. Try again or use manual transfer.",
+        localhostWarning:
+          "You are on localhost — checkout may not work here. Open the deployed HTTPS site to complete payment.",
+        preparing: "Preparing secure checkout…",
+      },
+      topup: {
+        successTitle: "Payment successful",
+        successBody:
+          "Your balance will be credited after the payment is confirmed. This may take a few minutes — refresh your dashboard if it does not appear right away.",
+        failedTitle: "Payment failed",
+        failedBody: "The payment did not complete. Try again or use manual transfer.",
+        pendingTitle: "Payment pending",
+        pendingBody: "Your payment is being processed. Balance will be added once confirmed.",
+      },
     },
     page: {
       greetingComma: "Welcome,",

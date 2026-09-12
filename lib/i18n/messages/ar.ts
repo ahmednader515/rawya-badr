@@ -48,6 +48,11 @@ export const arMessages: Messages = {
     defaultTitle: "منصتي التعليمية",
     defaultTagline: "تعلم بأسلوب حديث ومنهجية واضحة",
     defaultCopyright: "منصتي التعليمية. جميع الحقوق محفوظة.",
+    linksLabel: "روابط التذييل",
+    privacyPolicy: "سياسة الخصوصية",
+    terms: "الشروط والأحكام",
+    refundPolicy: "سياسة الاسترجاع",
+    contact: "اتصل بنا",
   },
   auth: {
     login: {
@@ -303,6 +308,30 @@ export const arMessages: Messages = {
       copiedWallet: "تم النسخ",
       copyWalletAria: "نسخ الرقم",
       copyInstapayAria: "نسخ عنوان إنستا باي",
+      manualDivider: "أو ادفع يدوياً",
+      fawaterak: {
+        amountLabel: "المبلغ",
+        amountPlaceholder: "100",
+        continueButton: "متابعة الدفع",
+        minMaxHint: "أدخل مبلغاً بين 1 و 200,000 ج.م",
+        checkoutTitle: "إتمام الدفع",
+        payButton: "الدفع عبر فواتيرك",
+        loading: "جاري التحميل…",
+        backToAddBalance: "← العودة إلى إضافة الرصيد",
+        errorGeneric: "تعذر بدء الدفع. حاول مرة أخرى أو استخدم التحويل اليدوي.",
+        localhostWarning:
+          "أنت على localhost — قد لا يعمل الدفع هنا. افتح الموقع المنشور عبر HTTPS لإتمام الدفع.",
+        preparing: "جاري تجهيز صفحة الدفع الآمنة…",
+      },
+      topup: {
+        successTitle: "تم الدفع بنجاح",
+        successBody:
+          "سيتم إضافة الرصيد بعد تأكيد الدفع. قد يستغرق ذلك دقائق — حدّث لوحة التحكم إن لم يظهر فوراً.",
+        failedTitle: "فشل الدفع",
+        failedBody: "لم يكتمل الدفع. حاول مرة أخرى أو استخدم التحويل اليدوي.",
+        pendingTitle: "الدفع قيد المعالجة",
+        pendingBody: "جاري معالجة دفعتك. سيُضاف الرصيد بعد التأكيد.",
+      },
     },
     page: {
       greetingComma: "مرحباً،",

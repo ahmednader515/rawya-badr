@@ -3,41 +3,19 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { getHomepageSettings } from "@/lib/db";
-import { PaymentMethodCards, type PaymentMethodCard } from "./PaymentMethodCards";
+import { TopupStatusBanner, type TopupStatus } from "./TopupStatusBanner";
 import { getLocaleFromCookie, getServerTranslator } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n/types";
-
-function toWhatsAppDigits(input: string | null | undefined): string {
-  if (!input) return "";
-  const digits = String(input).replace(/\D+/g, "");
-  return digits;
-}
+import { FawaterakPayLauncher } from "@/components/fawaterak/FawaterakPayLauncher";
+import { FAWATERAK_MAX_AMOUNT, FAWATERAK_MIN_AMOUNT } from "@/lib/fawaterak/constants";
 
 const ABS = "dashboard.addBalanceStudent";
 
-type AddBalanceMsgKey =
-  | "title"
-  | "subtitle"
-  | "methodTitle"
-  | "transferInstruction"
-  | "instapayMethodTitle"
-  | "instapayTransferInstruction"
-  | "confirmationNote"
-  | "waitingNote"
-  | "whatsappButton";
+type AddBalanceMsgKey = "title" | "subtitle";
 
 const ADD_BALANCE_FALLBACK_EN: Record<AddBalanceMsgKey, string> = {
   title: "Add balance",
   subtitle: "Choose a payment method then follow the instructions",
-  methodTitle: "Vodafone Cash",
-  transferInstruction: "Transfer the required amount to the following wallet number:",
-  instapayMethodTitle: "InstaPay",
-  instapayTransferInstruction: "Transfer the required amount to the following InstaPay address:",
-  confirmationNote:
-    "After transfer, send the transfer confirmation screenshot on WhatsApp to the number",
-  waitingNote:
-    "After sending the confirmation screenshot, your balance will be pending review and credited as soon as possible.",
-  whatsappButton: "Send confirmation screenshot on WhatsApp",
 };
 
 function resolveAddBalanceCopy(
@@ -57,19 +35,29 @@ function resolveAddBalanceCopy(
   return t(`${ABS}.${key}`, ADD_BALANCE_FALLBACK_EN[key]);
 }
 
-export default async function AddBalancePage() {
+function parseTopupStatus(raw: string | undefined): TopupStatus | null {
+  if (raw === "success" || raw === "failed" || raw === "pending") return raw;
+  return null;
+}
+
+type AddBalancePageProps = {
+  searchParams: Promise<{ topup?: string }>;
+};
+
+export default async function AddBalancePage({ searchParams }: AddBalancePageProps) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
   if (session.user.role !== "STUDENT") redirect("/dashboard");
+
+  const params = await searchParams;
+  const topupStatus = parseTopupStatus(params.topup);
+
   const [settings, locale, t] = await Promise.all([
     getHomepageSettings(),
     getLocaleFromCookie(),
     getServerTranslator(),
   ]);
 
-  const walletNumber = settings.addBalanceWalletNumber?.trim() || "01023005622";
-  const instapayAddress = settings.addBalanceInstapayAddress?.trim() || "";
-  const whatsappNumber = toWhatsAppDigits(settings.addBalanceWhatsappNumber) || "966553612356";
   const pageTitle = resolveAddBalanceCopy(locale, settings.addBalanceTitle, settings.addBalanceTitleEn, t, "title");
   const pageSubtitle = resolveAddBalanceCopy(
     locale,
@@ -78,79 +66,34 @@ export default async function AddBalancePage() {
     t,
     "subtitle",
   );
-  const methodTitle = resolveAddBalanceCopy(
-    locale,
-    settings.addBalanceMethodTitle,
-    settings.addBalanceMethodTitleEn,
-    t,
-    "methodTitle",
-  );
-  const transferInstruction = resolveAddBalanceCopy(
-    locale,
-    settings.addBalanceTransferInstruction,
-    settings.addBalanceTransferInstructionEn,
-    t,
-    "transferInstruction",
-  );
-  const instapayMethodTitle = resolveAddBalanceCopy(
-    locale,
-    settings.addBalanceInstapayMethodTitle,
-    settings.addBalanceInstapayMethodTitleEn,
-    t,
-    "instapayMethodTitle",
-  );
-  const instapayTransferInstruction = resolveAddBalanceCopy(
-    locale,
-    settings.addBalanceInstapayTransferInstruction,
-    settings.addBalanceInstapayTransferInstructionEn,
-    t,
-    "instapayTransferInstruction",
-  );
-  const confirmationNote = resolveAddBalanceCopy(
-    locale,
-    settings.addBalanceConfirmationNote,
-    settings.addBalanceConfirmationNoteEn,
-    t,
-    "confirmationNote",
-  );
-  const waitingNote = resolveAddBalanceCopy(
-    locale,
-    settings.addBalanceWaitingNote,
-    settings.addBalanceWaitingNoteEn,
-    t,
-    "waitingNote",
-  );
-  const whatsappButtonText = resolveAddBalanceCopy(
-    locale,
-    settings.addBalanceWhatsappButtonText,
-    settings.addBalanceWhatsappButtonTextEn,
-    t,
-    "whatsappButton",
-  );
 
-  const copyLabel = t("dashboard.addBalanceStudent.copyWallet", "Copy");
-  const copiedLabel = t("dashboard.addBalanceStudent.copiedWallet", "Copied");
+  const fawaterakLabels = {
+    amountLabel: t(`${ABS}.fawaterak.amountLabel`, "Amount"),
+    amountPlaceholder: t(`${ABS}.fawaterak.amountPlaceholder`, "100"),
+    continueButton: t(`${ABS}.fawaterak.continueButton`, "Continue to payment"),
+    minMaxHint: t(
+      `${ABS}.fawaterak.minMaxHint`,
+      `Enter an amount between ${FAWATERAK_MIN_AMOUNT} and ${FAWATERAK_MAX_AMOUNT} EGP`,
+    ),
+  };
 
-  const methods: PaymentMethodCard[] = [
-    {
-      id: "vodafone",
-      title: methodTitle,
-      transferInstruction,
-      destination: walletNumber,
-      copyLabel,
-      copiedLabel,
-      copyAriaLabel: t("dashboard.addBalanceStudent.copyWalletAria", "Copy wallet number"),
-    },
-    {
-      id: "instapay",
-      title: instapayMethodTitle,
-      transferInstruction: instapayTransferInstruction,
-      destination: instapayAddress,
-      copyLabel,
-      copiedLabel,
-      copyAriaLabel: t("dashboard.addBalanceStudent.copyInstapayAria", "Copy InstaPay address"),
-    },
-  ];
+  const topupLabels = {
+    successTitle: t(`${ABS}.topup.successTitle`, "Payment successful"),
+    successBody: t(
+      `${ABS}.topup.successBody`,
+      "Your balance will be credited after the payment is confirmed. This may take a few minutes — refresh your dashboard if it does not appear right away.",
+    ),
+    failedTitle: t(`${ABS}.topup.failedTitle`, "Payment failed"),
+    failedBody: t(
+      `${ABS}.topup.failedBody`,
+      "The payment did not complete. Try again or use manual transfer.",
+    ),
+    pendingTitle: t(`${ABS}.topup.pendingTitle`, "Payment pending"),
+    pendingBody: t(
+      `${ABS}.topup.pendingBody`,
+      "Your payment is being processed. Balance will be added once confirmed.",
+    ),
+  };
 
   return (
     <div className="max-w-2xl">
@@ -163,13 +106,17 @@ export default async function AddBalancePage() {
       <h2 className="mt-6 text-2xl font-bold text-[var(--color-foreground)]">{pageTitle}</h2>
       <p className="mt-1 text-[var(--color-muted)]">{pageSubtitle}</p>
 
-      <PaymentMethodCards
-        methods={methods}
-        confirmationNote={confirmationNote}
-        waitingNote={waitingNote}
-        whatsappNumber={whatsappNumber}
-        whatsappButtonText={whatsappButtonText}
-      />
+      {topupStatus ? <TopupStatusBanner status={topupStatus} labels={topupLabels} /> : null}
+
+      <div className="mt-8">
+        <FawaterakPayLauncher
+          labels={fawaterakLabels}
+          minAmount={FAWATERAK_MIN_AMOUNT}
+          maxAmount={FAWATERAK_MAX_AMOUNT}
+          currencyShort={t("common.egyptianPoundShort", "EGP")}
+          checkoutPath="/dashboard/add-balance/checkout"
+        />
+      </div>
     </div>
   );
 }

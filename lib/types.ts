@@ -549,3 +549,30 @@ export interface Message {
   fileName: string | null;
   createdAt: Date;
 }
+
+export type FawaterakDepositStatus = "PENDING" | "COMPLETED" | "FAILED";
+export type FawaterakDepositKind = "BALANCE_TOPUP";
+export type BalanceTransactionType = "CREDIT" | "DEBIT";
+
+export interface FawaterakDeposit {
+  id: string;
+  userId: string;
+  amount: string;
+  status: FawaterakDepositStatus;
+  kind: FawaterakDepositKind;
+  invoiceId: string | null;
+  invoiceKey: string | null;
+  referenceNumber: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BalanceTransaction {
+  id: string;
+  userId: string;
+  amount: string;
+  type: BalanceTransactionType;
+  source: string;
+  referenceId: string | null;
+  createdAt: Date;
+}
