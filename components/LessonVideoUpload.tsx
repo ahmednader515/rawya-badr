@@ -6,7 +6,6 @@ import type { VdoCipherClientPayload } from "@/lib/vdocipher";
 import { formatVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 import { VdoCipherPreviewPlayer } from "./VdoCipherPreviewPlayer";
 
-const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 const STATUS_POLL_MS = 5000;
 const STATUS_POLL_MAX = 120;
 
@@ -97,12 +96,6 @@ export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSave
 
     if (!file.type.startsWith("video/")) {
       setError(t(`${Cf}.videoInvalidType`, "Please choose a video file"));
-      setPhase("error");
-      return;
-    }
-
-    if (file.size > MAX_VIDEO_BYTES) {
-      setError(t(`${Cf}.videoTooLarge`, "Video file is too large (max 2 GB)"));
       setPhase("error");
       return;
     }
