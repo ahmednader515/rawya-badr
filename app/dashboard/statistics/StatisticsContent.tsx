@@ -7,16 +7,17 @@ import { useDashboardTable, dateLocaleForUi } from "@/lib/i18n/dashboard-table";
 import { fillMessage } from "@/lib/i18n/interpolate";
 import type { Locale } from "@/lib/i18n/types";
 
-type Attempt = {
+type CertificateRow = {
+  id: string;
   userId: string;
-  quizId: string;
   userName: string | null;
   userEmail: string | null;
+  courseId: string;
   courseTitle: string | null;
-  quizTitle: string | null;
-  score: number;
-  totalQuestions: number;
-  createdAt: string;
+  courseTitleAr: string | null;
+  courseSlug: string | null;
+  certificateCode: string;
+  issuedAt: string;
 };
 
 type CourseInfo = { title: string; titleAr: string | null };
@@ -26,15 +27,15 @@ type EnrollmentInfo = { course: CourseInfo };
 type StudentWithDetails = {
   student: { id: string; name: string | null; email: string | null };
   enrollments: EnrollmentInfo[];
-  userAttempts: Attempt[];
+  completedCourses: CertificateRow[];
 };
 
 type Props = {
   studentsCount: number;
   totalEnrollments: number;
-  attemptsCount: number;
+  certificatesCount: number;
   totalEarnings: number;
-  attempts: Attempt[];
+  certificates: CertificateRow[];
   studentsWithDetails: StudentWithDetails[];
   titleSuffix?: string;
 };
@@ -46,12 +47,17 @@ function formatDate(d: Date | string, locale: Locale) {
   }).format(typeof d === "string" ? new Date(d) : d);
 }
 
+function courseDisplayTitle(course: { title: string | null; titleAr?: string | null }, locale: Locale) {
+  if (locale === "ar") return course.titleAr?.trim() || course.title || "—";
+  return course.title?.trim() || course.titleAr?.trim() || "—";
+}
+
 export default function StatisticsContent({
   studentsCount,
   totalEnrollments,
-  attemptsCount,
+  certificatesCount,
   totalEarnings,
-  attempts,
+  certificates,
   studentsWithDetails,
   titleSuffix = "",
 }: Props) {
@@ -63,14 +69,21 @@ export default function StatisticsContent({
 
   const trimmed = searchQuery.trim().toLowerCase();
 
-  const filteredAttempts = useMemo(() => {
-    if (!trimmed) return attempts;
-    return attempts.filter((a) => {
-      const name = (a.userName ?? "").toLowerCase();
-      const email = (a.userEmail ?? "").toLowerCase();
-      return name.includes(trimmed) || email.includes(trimmed);
+  const filteredCertificates = useMemo(() => {
+    if (!trimmed) return certificates;
+    return certificates.filter((c) => {
+      const name = (c.userName ?? "").toLowerCase();
+      const email = (c.userEmail ?? "").toLowerCase();
+      const course = `${c.courseTitle ?? ""} ${c.courseTitleAr ?? ""}`.toLowerCase();
+      const code = (c.certificateCode ?? "").toLowerCase();
+      return (
+        name.includes(trimmed) ||
+        email.includes(trimmed) ||
+        course.includes(trimmed) ||
+        code.includes(trimmed)
+      );
     });
-  }, [attempts, trimmed]);
+  }, [certificates, trimmed]);
 
   const filteredStudentsWithDetails = useMemo(() => {
     if (!trimmed) return studentsWithDetails;
@@ -110,10 +123,13 @@ export default function StatisticsContent({
         />
         {trimmed && (
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            {fillMessage(t(`${pq}.filterSummary`, "Showing {students} students, {attempts} quiz attempts"), {
-              students: String(filteredStudentsWithDetails.length),
-              attempts: String(filteredAttempts.length),
-            })}
+            {fillMessage(
+              t(`${pq}.filterSummary`, "Showing {students} students, {certificates} certificates"),
+              {
+                students: String(filteredStudentsWithDetails.length),
+                certificates: String(filteredCertificates.length),
+              },
+            )}
           </p>
         )}
       </div>
@@ -128,8 +144,8 @@ export default function StatisticsContent({
           <p className="text-2xl font-bold text-[var(--color-foreground)]">{totalEnrollments}</p>
         </div>
         <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-          <p className="text-sm text-[var(--color-muted)]">{t(`${pq}.cardAttempts`, "Quiz attempts")}</p>
-          <p className="text-2xl font-bold text-[var(--color-foreground)]">{attemptsCount}</p>
+          <p className="text-sm text-[var(--color-muted)]">{t(`${pq}.cardCertificates`, "Certificates issued")}</p>
+          <p className="text-2xl font-bold text-[var(--color-foreground)]">{certificatesCount}</p>
         </div>
         <div className="rounded-[var(--radius-card)] border border-[var(--color-primary)]/30 bg-[var(--color-primary-light)]/20 p-4">
           <p className="text-sm text-[var(--color-muted)]">{t(`${pq}.cardEarningsTitle`, "Total platform earnings")}</p>
@@ -144,13 +160,13 @@ export default function StatisticsContent({
 
       <section className="mb-8 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h3 className="mb-4 text-lg font-semibold text-[var(--color-foreground)]">
-          {t(`${pq}.sectionQuizScores`, "Quiz scores")}
+          {t(`${pq}.sectionCompletedCertificates`, "Completed courses & certificates")}
         </h3>
-        {filteredAttempts.length === 0 ? (
+        {filteredCertificates.length === 0 ? (
           <p className="text-sm text-[var(--color-muted)]">
             {trimmed
-              ? t(`${pq}.noAttemptsFiltered`, "No results match your search.")
-              : t(`${pq}.noAttemptsEmpty`, "No attempts recorded yet.")}
+              ? t(`${pq}.noCertificatesFiltered`, "No results match your search.")
+              : t(`${pq}.noCertificatesEmpty`, "No certificates issued yet.")}
           </p>
         ) : (
           <div dir={dir} className="overflow-x-auto">
@@ -160,22 +176,27 @@ export default function StatisticsContent({
                   <th className={thClassCompact}>{t(`${pq}.colStudent`, "Student")}</th>
                   <th className={thClassCompact}>{t(`${pq}.colEmail`, "Email")}</th>
                   <th className={thClassCompact}>{t(`${pq}.colCourse`, "Course")}</th>
-                  <th className={thClassCompact}>{t(`${pq}.colQuiz`, "Quiz")}</th>
-                  <th className={thClassCompact}>{t(`${pq}.colScore`, "Score")}</th>
+                  <th className={thClassCompact}>{t(`${pq}.colCertificate`, "Certificate")}</th>
                   <th className={thClassCompact}>{t(`${pq}.colDate`, "Date")}</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredAttempts.map((a) => (
-                  <tr key={`${a.userId}-${a.quizId}-${a.createdAt}`} className="border-b border-[var(--color-border)]/50">
-                    <td className="px-3 py-2 text-[var(--color-foreground)]">{a.userName}</td>
-                    <td className="px-3 py-2 text-[var(--color-muted)]">{a.userEmail}</td>
-                    <td className="px-3 py-2 text-[var(--color-foreground)]">{a.courseTitle}</td>
-                    <td className="px-3 py-2 text-[var(--color-foreground)]">{a.quizTitle}</td>
+                {filteredCertificates.map((c) => (
+                  <tr key={c.id} className="border-b border-[var(--color-border)]/50">
+                    <td className="px-3 py-2 text-[var(--color-foreground)]">{c.userName}</td>
+                    <td className="px-3 py-2 text-[var(--color-muted)]">{c.userEmail}</td>
                     <td className="px-3 py-2 text-[var(--color-foreground)]">
-                      {a.score} / {a.totalQuestions}
+                      {courseDisplayTitle(
+                        { title: c.courseTitle, titleAr: c.courseTitleAr },
+                        locale,
+                      )}
                     </td>
-                    <td className="px-3 py-2 text-[var(--color-muted)]">{formatDate(a.createdAt, locale)}</td>
+                    <td className="px-3 py-2 font-mono text-[var(--color-foreground)]">
+                      {c.certificateCode}
+                    </td>
+                    <td className="px-3 py-2 text-[var(--color-muted)]">
+                      {formatDate(c.issuedAt, locale)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -196,7 +217,7 @@ export default function StatisticsContent({
           </p>
         ) : (
           <ul className="space-y-4">
-            {filteredStudentsWithDetails.map(({ student: s, enrollments, userAttempts }) => (
+            {filteredStudentsWithDetails.map(({ student: s, enrollments, completedCourses }) => (
               <li
                 key={s.id}
                 className="rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] p-4"
@@ -206,31 +227,54 @@ export default function StatisticsContent({
                     <p className="font-medium text-[var(--color-foreground)]">{s.name}</p>
                     <p className="text-sm text-[var(--color-muted)]">{s.email}</p>
                   </div>
-                  <div className="flex gap-3 text-sm text-[var(--color-muted)]">
+                  <div className="flex flex-wrap gap-3 text-sm text-[var(--color-muted)]">
                     <span>
                       {fillMessage(t(`${pq}.enrolledInCourses`, "Enrolled in {count} course(s)"), {
                         count: String(enrollments.length),
                       })}
                     </span>
                     <span>
-                      {t(`${pq}.quizAttemptsCount`, "Quiz attempts:")} {userAttempts.length}
+                      {fillMessage(
+                        t(`${pq}.completedCoursesCount`, "Completed: {count}"),
+                        { count: String(completedCourses.length) },
+                      )}
                     </span>
                   </div>
                 </div>
                 {enrollments.length > 0 && (
                   <p className="mt-2 text-sm text-[var(--color-foreground)]">
                     {t(`${pq}.coursesLabel`, "Courses:")}{" "}
-                    {enrollments.map((e) => e.course.titleAr ?? e.course.title).join(locale === "ar" ? "، " : ", ")}
+                    {enrollments
+                      .map((e) => courseDisplayTitle(e.course, locale))
+                      .join(locale === "ar" ? "، " : ", ")}
                   </p>
                 )}
-                {userAttempts.length > 0 && (
-                  <div className="mt-2 text-xs text-[var(--color-muted)]">
-                    {t(`${pq}.latestResults`, "Latest results:")}{" "}
-                    {userAttempts
-                      .slice(0, 3)
-                      .map((a) => `${a.quizTitle} (${a.score}/${a.totalQuestions})`)
-                      .join(" — ")}
-                  </div>
+                {completedCourses.length > 0 ? (
+                  <ul className="mt-3 space-y-2 border-t border-[var(--color-border)]/60 pt-3">
+                    <li className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
+                      {t(`${pq}.completedWithCertificate`, "Completed courses & certificates")}
+                    </li>
+                    {completedCourses.map((c) => (
+                      <li
+                        key={c.id}
+                        className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                      >
+                        <span className="text-[var(--color-foreground)]">
+                          {courseDisplayTitle(
+                            { title: c.courseTitle, titleAr: c.courseTitleAr },
+                            locale,
+                          )}
+                        </span>
+                        <span className="font-mono text-xs text-[var(--color-primary)]">
+                          {c.certificateCode}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs text-[var(--color-muted)]">
+                    {t(`${pq}.noCompletedYet`, "No completed courses / certificates yet.")}
+                  </p>
                 )}
               </li>
             ))}

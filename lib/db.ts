@@ -5191,6 +5191,102 @@ export async function listCourseCertificatesForUser(userId: string): Promise<
   }));
 }
 
+export type CertificateStatsRow = {
+  id: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  courseId: string;
+  courseTitle: string | null;
+  courseTitleAr: string | null;
+  courseSlug: string | null;
+  certificateCode: string;
+  issuedAt: Date | string;
+};
+
+function mapCertificateStatsRow(r: Record<string, unknown>): CertificateStatsRow {
+  const camel = rowToCamel(r) as Record<string, unknown>;
+  return {
+    id: String(camel.id ?? r.id),
+    userId: String(camel.userId ?? r.user_id ?? ""),
+    userName: camel.userName != null ? String(camel.userName) : r.user_name != null ? String(r.user_name) : null,
+    userEmail:
+      camel.userEmail != null ? String(camel.userEmail) : r.user_email != null ? String(r.user_email) : null,
+    courseId: String(camel.courseId ?? r.course_id ?? ""),
+    courseTitle:
+      camel.courseTitle != null
+        ? String(camel.courseTitle)
+        : r.course_title != null
+          ? String(r.course_title)
+          : null,
+    courseTitleAr:
+      camel.courseTitleAr != null
+        ? String(camel.courseTitleAr)
+        : r.course_title_ar != null
+          ? String(r.course_title_ar)
+          : null,
+    courseSlug:
+      camel.courseSlug != null
+        ? String(camel.courseSlug)
+        : r.course_slug != null
+          ? String(r.course_slug)
+          : null,
+    certificateCode: String(camel.certificateCode ?? r.certificate_code ?? ""),
+    issuedAt: (camel.issuedAt ?? r.issued_at ?? new Date()) as Date | string,
+  };
+}
+
+/** All issued certificates with student + course info (admin / assistant). */
+export async function listAllCourseCertificatesForAdmin(): Promise<CertificateStatsRow[]> {
+  await ensureCourseCertificatesSchema();
+  if (!courseCertificatesSchemaAvailable) return [];
+  const rows = await sql`
+    SELECT
+      cc.id,
+      cc.user_id,
+      cc.course_id,
+      cc.certificate_code,
+      cc.issued_at,
+      u.name AS user_name,
+      u.email AS user_email,
+      c.title AS course_title,
+      c.title_ar AS course_title_ar,
+      c.slug AS course_slug
+    FROM "CourseCertificate" cc
+    INNER JOIN "User" u ON u.id = cc.user_id
+    INNER JOIN "Course" c ON c.id = cc.course_id
+    ORDER BY cc.issued_at DESC
+  `;
+  return (rows as Record<string, unknown>[]).map(mapCertificateStatsRow);
+}
+
+/** Certificates for courses created by this teacher. */
+export async function listCourseCertificatesForTeacher(
+  teacherId: string,
+): Promise<CertificateStatsRow[]> {
+  await ensureCourseCertificatesSchema();
+  if (!courseCertificatesSchemaAvailable) return [];
+  const rows = await sql`
+    SELECT
+      cc.id,
+      cc.user_id,
+      cc.course_id,
+      cc.certificate_code,
+      cc.issued_at,
+      u.name AS user_name,
+      u.email AS user_email,
+      c.title AS course_title,
+      c.title_ar AS course_title_ar,
+      c.slug AS course_slug
+    FROM "CourseCertificate" cc
+    INNER JOIN "User" u ON u.id = cc.user_id
+    INNER JOIN "Course" c ON c.id = cc.course_id
+    WHERE c.created_by_id = ${teacherId}
+    ORDER BY cc.issued_at DESC
+  `;
+  return (rows as Record<string, unknown>[]).map(mapCertificateStatsRow);
+}
+
 export async function deleteActivationCode(id: string): Promise<void> {
   await sql`DELETE FROM "ActivationCode" WHERE id = ${id}`;
 }
