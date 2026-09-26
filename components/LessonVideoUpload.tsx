@@ -1,10 +1,26 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "./LocaleProvider";
 import type { VdoCipherClientPayload } from "@/lib/vdocipher";
-import { formatVdoCipherVideoId } from "@/lib/vdocipher-video-id";
+import { formatVdoCipherVideoId, normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 import { VdoCipherPreviewPlayer } from "./VdoCipherPreviewPlayer";
+
+type LibraryVideo = {
+  id: string;
+  title: string;
+  status: string;
+  length: number | null;
+  posterUrl: string | null;
+};
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "";
+  const total = Math.round(seconds);
+  const minutes = Math.floor(total / 60);
+  const remainder = total % 60;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
 
 const STATUS_POLL_MS = 5000;
 const STATUS_POLL_MAX = 120;
@@ -86,8 +102,62 @@ export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSave
   const [phase, setPhase] = useState<UploadPhase>("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [libraryVideos, setLibraryVideos] = useState<LibraryVideo[]>([]);
+  const [libraryPage, setLibraryPage] = useState(1);
+  const [libraryCount, setLibraryCount] = useState(0);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState("");
 
   const busy = phase === "uploading" || phase === "processing";
+  const selectedId = normalizeVdoCipherVideoId(videoId) ?? "";
+
+  async function loadLibrary(page: number, query: string, append: boolean) {
+    setLibraryLoading(true);
+    setLibraryError("");
+    try {
+      const params = new URLSearchParams({ page: String(page) });
+      if (query.trim()) params.set("q", query.trim());
+      const res = await fetch(`/api/upload/video/library?${params.toString()}`, {
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        videos?: LibraryVideo[];
+        count?: number;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(data.error || t(`${Cf}.videoLibraryLoadFailed`, "Could not load the video library."));
+      const next = data.videos ?? [];
+      setLibraryVideos((current) => (append ? [...current, ...next] : next));
+      setLibraryCount(Number(data.count ?? next.length));
+      setLibraryPage(page);
+    } catch (err) {
+      setLibraryError(
+        err instanceof Error ? err.message : t(`${Cf}.videoLibraryLoadFailed`, "Could not load the video library."),
+      );
+    } finally {
+      setLibraryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!libraryOpen) return;
+    const handle = window.setTimeout(() => {
+      void loadLibrary(1, libraryQuery, false);
+    }, 250);
+    return () => window.clearTimeout(handle);
+    // loadLibrary closes over latest translator; search debounce is the intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryOpen, libraryQuery]);
+
+  function selectExistingVideo(id: string) {
+    onVideoId(formatVdoCipherVideoId(id));
+    setPhase("ready");
+    setError("");
+    setLibraryOpen(false);
+    onVideoSaved?.();
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -129,6 +199,7 @@ export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSave
 
       onVideoId(formatVdoCipherVideoId(credData.videoId));
       setPhase("ready");
+      setLibraryOpen(false);
       onVideoSaved?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : t(`${Cf}.uploadFailedDetail`, "Upload failed"));
@@ -163,6 +234,14 @@ export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSave
             <button
               type="button"
               disabled={busy || disabled}
+              onClick={() => setLibraryOpen(true)}
+              className="text-sm text-[var(--color-primary)] hover:underline disabled:opacity-50"
+            >
+              {t(`${Cf}.videoChange`, "Change video")}
+            </button>
+            <button
+              type="button"
+              disabled={busy || disabled}
               onClick={() => {
                 onVideoId("");
                 setPhase("idle");
@@ -175,22 +254,26 @@ export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSave
           </div>
           <VdoCipherPreviewPlayer key={videoId} videoId={videoId} />
         </div>
-      ) : null}
-      <label
-        className={`mt-1 inline-block rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm ${
-          busy || disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-        }`}
-      >
-        {statusLabel()}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="video/*"
-          className="hidden"
+      ) : (
+        <button
+          type="button"
           disabled={busy || disabled}
-          onChange={handleFileChange}
-        />
-      </label>
+          onClick={() => setLibraryOpen(true)}
+          className={`mt-1 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm ${
+            busy || disabled ? "cursor-not-allowed opacity-60" : "hover:bg-[var(--color-border)]/40"
+          }`}
+        >
+          {statusLabel()}
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        disabled={busy || disabled}
+        onChange={handleFileChange}
+      />
       {phase === "uploading" && progress > 0 ? (
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
           <div
@@ -200,6 +283,122 @@ export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSave
         </div>
       ) : null}
       {error ? <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+
+      {libraryOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="video-library-title"
+          onClick={() => {
+            if (!busy) setLibraryOpen(false);
+          }}
+        >
+          <div
+            className="flex max-h-[min(85vh,760px)] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
+              <h3 id="video-library-title" className="text-lg font-semibold text-[var(--color-foreground)]">
+                {t(`${Cf}.videoLibraryTitle`, "Video library")}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy || disabled}
+                  onClick={() => inputRef.current?.click()}
+                  className="rounded-[var(--radius-btn)] bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {busy ? statusLabel() : t(`${Cf}.uploadNewVideo`, "Upload new video")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setLibraryOpen(false)}
+                  className="rounded-[var(--radius-btn)] border border-[var(--color-border)] px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  {t("dashboard.courseForm.cancelBtnShort", "Cancel")}
+                </button>
+              </div>
+            </div>
+            <div className="border-b border-[var(--color-border)] px-4 py-3">
+              <input
+                type="search"
+                value={libraryQuery}
+                onChange={(e) => setLibraryQuery(e.target.value)}
+                placeholder={t(`${Cf}.videoLibrarySearch`, "Search videos…")}
+                className="w-full rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {libraryError ? (
+                <p className="text-sm text-red-600 dark:text-red-400">{libraryError}</p>
+              ) : null}
+              {libraryLoading && libraryVideos.length === 0 ? (
+                <p className="text-sm text-[var(--color-muted)]">{t("common.loading", "Loading")}</p>
+              ) : null}
+              {!libraryLoading && !libraryError && libraryVideos.length === 0 ? (
+                <p className="text-sm text-[var(--color-muted)]">
+                  {t(`${Cf}.videoLibraryEmpty`, "No videos in your library yet.")}
+                </p>
+              ) : null}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {libraryVideos.map((video) => {
+                  const selected = selectedId === video.id;
+                  const duration = formatDuration(video.length);
+                  return (
+                    <button
+                      key={video.id}
+                      type="button"
+                      disabled={busy || disabled}
+                      onClick={() => selectExistingVideo(video.id)}
+                      className={`overflow-hidden rounded-[var(--radius-btn)] border text-start transition ${
+                        selected
+                          ? "border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]"
+                          : "border-[var(--color-border)] hover:border-[var(--color-primary)]/50"
+                      }`}
+                    >
+                      <div className="relative aspect-video bg-[var(--color-background)]">
+                        {video.posterUrl ? (
+                          <img
+                            src={video.posterUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xs text-[var(--color-muted)]">
+                            {video.status}
+                          </div>
+                        )}
+                        {duration ? (
+                          <span className="absolute bottom-1 end-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
+                            {duration}
+                          </span>
+                        ) : null}
+                      </div>
+                      <span className="line-clamp-2 px-2 py-2 text-xs text-[var(--color-foreground)]">
+                        {video.title}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {libraryVideos.length < libraryCount ? (
+                <button
+                  type="button"
+                  disabled={libraryLoading}
+                  onClick={() => void loadLibrary(libraryPage + 1, libraryQuery, true)}
+                  className="mt-4 rounded-[var(--radius-btn)] border border-[var(--color-border)] px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {libraryLoading
+                    ? t("common.loading", "Loading")
+                    : t(`${Cf}.videoLibraryLoadMore`, "Load more")}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

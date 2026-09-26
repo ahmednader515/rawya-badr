@@ -168,6 +168,89 @@ export async function getUploadCredentials(
   return { videoId, clientPayload };
 }
 
+export type VdoCipherLibraryVideo = {
+  id: string;
+  title: string;
+  status: VdoCipherVideoStatus;
+  length: number | null;
+  posterUrl: string | null;
+};
+
+export type VdoCipherVideoList = {
+  videos: VdoCipherLibraryVideo[];
+  count: number;
+  page: number;
+  limit: number;
+};
+
+function pickPosterUrl(row: Record<string, unknown>): string | null {
+  const poster = row.poster;
+  if (typeof poster === "string" && poster.trim()) return poster.trim();
+  const posters = row.posters;
+  if (!Array.isArray(posters)) return null;
+  for (const item of posters) {
+    if (!item || typeof item !== "object") continue;
+    const url = (item as { posterUrl?: unknown; url?: unknown }).posterUrl
+      ?? (item as { url?: unknown }).url;
+    if (typeof url === "string" && url.trim()) return url.trim();
+  }
+  return null;
+}
+
+/** Paginated library of videos already stored in the VdoCipher account. */
+export async function listVdoCipherVideos(options?: {
+  page?: number;
+  limit?: number;
+  query?: string;
+}): Promise<VdoCipherVideoList> {
+  const page = Math.max(1, Math.floor(options?.page ?? 1));
+  const limit = Math.min(40, Math.max(1, Math.floor(options?.limit ?? 24)));
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  const query = options?.query?.trim();
+  if (query) params.set("q", query);
+
+  const res = await fetch(`${VDOCIPHER_API_BASE}/videos?${params.toString()}`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseVdoCipherError(res));
+  }
+
+  const data = (await res.json()) as {
+    count?: number;
+    total?: number;
+    rows?: Record<string, unknown>[];
+  };
+
+  const videos = (data.rows ?? [])
+    .map((row) => {
+      const id = String(row.id ?? "").trim();
+      if (!id) return null;
+      const lengthRaw = Number(row.length);
+      return {
+        id,
+        title: String(row.title ?? "").trim() || id,
+        status: String(row.status ?? "Processing"),
+        length: Number.isFinite(lengthRaw) && lengthRaw > 0 ? lengthRaw : null,
+        posterUrl: pickPosterUrl(row),
+      } satisfies VdoCipherLibraryVideo;
+    })
+    .filter((video): video is VdoCipherLibraryVideo => video != null)
+    .filter((video) => video.status.toLowerCase() !== "pre-upload");
+
+  return {
+    videos,
+    count: Number(data.count ?? data.total ?? videos.length) || videos.length,
+    page,
+    limit,
+  };
+}
+
 export async function getVideoStatus(videoId: string): Promise<VdoCipherVideoDetails> {
   const id = videoId.trim();
   const res = await fetch(`${VDOCIPHER_API_BASE}/videos/${encodeURIComponent(id)}`, {
