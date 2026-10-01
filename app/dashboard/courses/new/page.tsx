@@ -5,9 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { getServerTranslator } from "@/lib/i18n/server";
 import { CreateCourseForm } from "./CreateCourseForm";
 
-type Props = { params: Promise<{ fresh?: string }> };
-
-export default async function NewCoursePage({ params }: Props) {
+export default async function NewCoursePage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
   const role = session.user.role;
@@ -15,7 +13,6 @@ export default async function NewCoursePage({ params }: Props) {
     redirect("/dashboard");
   }
   const t = await getServerTranslator();
-  const { fresh } = await params;
 
   return (
     <div>
@@ -28,7 +25,7 @@ export default async function NewCoursePage({ params }: Props) {
       <h2 className="mt-4 text-xl font-bold text-[var(--color-foreground)]">
         {t("dashboard.courseNewPage.title")}
       </h2>
-      <CreateCourseForm freshStart={fresh === "1"} />
+      <CreateCourseForm />
     </div>
   );
 }

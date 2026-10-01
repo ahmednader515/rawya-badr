@@ -46,10 +46,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (!forceNew) {
-    const existing = await getLatestDraftCourseForCreator(session.user.id);
-    if (existing?.id) {
-      return NextResponse.json({ id: String(existing.id), resumed: true });
-    }
+    return NextResponse.json(
+      { error: "A new course must be started explicitly" },
+      { status: 400 },
+    );
   }
 
   const slug = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

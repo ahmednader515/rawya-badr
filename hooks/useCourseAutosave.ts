@@ -12,6 +12,8 @@ type Options = {
   debounceMs?: number;
   forceDraft?: boolean;
   skipInitialLoad?: boolean;
+  /** When this form has no course id yet, create a new draft instead of reusing the latest one. */
+  createNewOnFirstSave?: boolean;
   onDraftLoaded?: (draftId: string) => void;
 };
 
@@ -22,6 +24,7 @@ export function useCourseAutosave({
   debounceMs = 1500,
   forceDraft = false,
   skipInitialLoad = false,
+  createNewOnFirstSave = false,
   onDraftLoaded,
 }: Options) {
   const [courseId, setCourseId] = useState<string | null>(initialCourseId ?? null);
@@ -41,11 +44,12 @@ export function useCourseAutosave({
 
   const ensureCourseId = useCallback(async (forceNew = false): Promise<string | null> => {
     if (courseId && !forceNew) return courseId;
+    const shouldCreateNew = forceNew || createNewOnFirstSave;
     const res = await fetch("/api/dashboard/courses/draft", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(forceNew ? { forceNew: true } : {}),
+      body: JSON.stringify(shouldCreateNew ? { forceNew: true } : {}),
     });
     const data = (await res.json()) as { id?: string; error?: string };
     if (!res.ok || !data.id) {
@@ -54,7 +58,7 @@ export function useCourseAutosave({
     setCourseId(data.id);
     onDraftLoaded?.(data.id);
     return data.id;
-  }, [courseId, onDraftLoaded]);
+  }, [courseId, createNewOnFirstSave, onDraftLoaded]);
 
   const saveNow = useCallback(
     async (options?: { publish?: boolean; forceNew?: boolean; payload?: CourseAutosaveBody }) => {

@@ -7,7 +7,6 @@ import { CourseFormSaveOverlay } from "../CourseFormSaveOverlay";
 import { ImageAttachField } from "@/components/ImageAttachField";
 import { LessonVideoUpload } from "@/components/LessonVideoUpload";
 import { useCourseAutosave } from "@/hooks/useCourseAutosave";
-import { mapDraftToFormState } from "@/lib/course-draft-map";
 import { buildCourseAutosavePayload } from "@/lib/course-form-payload";
 
 type CategoryOption = { id: string; name: string; nameAr?: string | null };
@@ -29,7 +28,66 @@ function emptyLesson(): LessonRow {
   return { title: "", videoUrl: "", content: "", pdfUrl: "" };
 }
 
-export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean }) {
+function draftHasUserContent(
+  form: {
+    titleAr: string;
+    titleEn: string;
+    descriptionAr: string;
+    descriptionEn: string;
+    shortDescAr: string;
+    shortDescEn: string;
+    imageUrl: string;
+    price: string;
+    maxQuizAttempts: string;
+    accessDays: string;
+    certKind: string;
+    creditPoints: string;
+    creditCategory: string;
+    categoryId: string;
+    categoryNameAr: string;
+    categoryNameEn: string;
+  },
+  lessons: LessonRow[],
+  quizzes: QuizRow[],
+): boolean {
+  if (
+    form.titleAr.trim() ||
+    form.titleEn.trim() ||
+    form.descriptionAr.trim() ||
+    form.descriptionEn.trim() ||
+    form.shortDescAr.trim() ||
+    form.shortDescEn.trim() ||
+    form.imageUrl.trim() ||
+    form.categoryId.trim() ||
+    form.categoryNameAr.trim() ||
+    form.categoryNameEn.trim() ||
+    form.accessDays.trim() ||
+    form.certKind.trim() ||
+    form.creditPoints.trim() ||
+    form.creditCategory.trim() ||
+    form.maxQuizAttempts.trim()
+  ) {
+    return true;
+  }
+  const price = Number(form.price);
+  if (Number.isFinite(price) && price > 0) return true;
+  if (lessons.some((l) => l.title.trim() || l.videoUrl.trim() || l.content.trim() || l.pdfUrl.trim())) {
+    return true;
+  }
+  return quizzes.some(
+    (q) =>
+      q.title.trim() ||
+      q.timeLimitMinutes.trim() ||
+      q.questions.some(
+        (qt) =>
+          qt.questionText.trim() ||
+          qt.questionImageUrl.trim() ||
+          qt.options.some((o) => o.text.trim()),
+      ),
+  );
+}
+
+export function CreateCourseForm() {
   const router = useRouter();
   const t = useT();
   const Cf = "dashboard.courseForm";
@@ -90,8 +148,6 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState("");
   const [pdfUploading, setPdfUploading] = useState<number | null>(null);
-  const [draftHydrated, setDraftHydrated] = useState(freshStart);
-  const [resumedDraft, setResumedDraft] = useState(false);
 
   const formRef = useRef(form);
   const lessonsRef = useRef(lessons);
@@ -122,50 +178,34 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
     [],
   );
 
-  const { status: autosaveStatus, scheduleSave, saveNow, setCourseId } = useCourseAutosave({
+  const { courseId, status: autosaveStatus, scheduleSave, saveNow } = useCourseAutosave({
     getPayload,
     forceDraft: true,
     skipInitialLoad: true,
+    createNewOnFirstSave: true,
   });
+  const courseIdRef = useRef<string | null>(null);
+  courseIdRef.current = courseId;
+
+  async function persistDraft(options?: { publish?: boolean; payload?: ReturnType<typeof getPayload> }) {
+    const snapshot = options?.payload ?? getPayload();
+    if (!options?.publish && !draftHasUserContent(formRef.current, lessonsRef.current, quizzesRef.current)) {
+      return null;
+    }
+    return saveNow({
+      publish: options?.publish,
+      payload: snapshot,
+      forceNew: !courseIdRef.current,
+    });
+  }
 
   useEffect(() => {
-    if (freshStart) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/dashboard/courses/draft", { credentials: "include" });
-        const data = (await res.json()) as {
-          draft?: Parameters<typeof mapDraftToFormState>[0] | null;
-        };
-        if (cancelled || !data.draft) return;
-        const mapped = mapDraftToFormState(data.draft);
-        setForm(mapped.form);
-        setLessons(mapped.lessons);
-        setQuizzes(mapped.quizzes);
-        setContentOrder(mapped.contentOrder);
-        setCourseId(mapped.draftId);
-        setResumedDraft(true);
-      } finally {
-        if (!cancelled) setDraftHydrated(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [freshStart, setCourseId]);
-
-  useEffect(() => {
-    if (!draftHydrated) return;
+    if (!draftHasUserContent(form, lessons, quizzes)) return;
     scheduleSave();
-  }, [draftHydrated, scheduleSave, form, lessons, quizzes, contentOrder]);
+  }, [scheduleSave, form, lessons, quizzes, contentOrder]);
 
   async function saveVideoImmediately() {
-    if (!draftHydrated) {
-      await saveNow();
-      setDraftHydrated(true);
-      return;
-    }
-    await saveNow();
+    await persistDraft();
   }
 
   function slugify(s: string) {
@@ -400,56 +440,13 @@ export function CreateCourseForm({ freshStart = false }: { freshStart?: boolean 
         </div>
       )}
 
-      {(resumedDraft || autosaveStatus !== "idle") && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm">
-          <span className="text-[var(--color-muted)]">
-            {autosaveStatus === "saving"
-              ? t(`${Cf}.draftSaving`, "Saving draft…")
-              : autosaveStatus === "saved"
-                ? t(`${Cf}.draftSaved`, "Draft saved")
-                : autosaveStatus === "error"
-                  ? t(`${Cf}.draftSaveFailed`, "Draft save failed")
-                  : resumedDraft
-                    ? t(`${Cf}.draftResumed`, "Resumed your draft")
-                    : null}
-          </span>
-          {resumedDraft && (
-            <button
-              type="button"
-              className="text-[var(--color-primary)] hover:underline"
-              onClick={() => {
-                void (async () => {
-                  const id = await saveNow({ forceNew: true });
-                  if (id) {
-                    setForm({
-                      titleAr: "",
-                      titleEn: "",
-                      descriptionAr: "",
-                      descriptionEn: "",
-                      shortDescAr: "",
-                      shortDescEn: "",
-                      imageUrl: "",
-                      price: "",
-                      maxQuizAttempts: "",
-                      accessDays: "",
-                      certKind: "",
-                      creditPoints: "",
-                      creditCategory: "",
-                      categoryId: "",
-                      categoryNameAr: "",
-                      categoryNameEn: "",
-                    });
-                    setLessons([emptyLesson()]);
-                    setQuizzes([{ title: "", timeLimitMinutes: "", questions: [emptyQuestion()] }]);
-                    setContentOrder([{ type: "lesson", index: 0 }, { type: "quiz", index: 0 }]);
-                    setResumedDraft(false);
-                  }
-                })();
-              }}
-            >
-              {t(`${Cf}.startFreshDraft`, "Start fresh")}
-            </button>
-          )}
+      {(autosaveStatus === "saving" || autosaveStatus === "saved" || autosaveStatus === "error") && (
+        <div className="rounded-[var(--radius-btn)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-muted)]">
+          {autosaveStatus === "saving"
+            ? t(`${Cf}.draftSaving`, "Saving draft…")
+            : autosaveStatus === "saved"
+              ? t(`${Cf}.draftSaved`, "Draft saved")
+              : t(`${Cf}.draftSaveFailed`, "Draft save failed")}
         </div>
       )}
 

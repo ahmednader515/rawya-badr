@@ -24,15 +24,19 @@ type CourseRow = {
 function CourseTableRow({
   c,
   deletingId,
+  publishingId,
   confirmDelete,
   onDelete,
+  onTogglePublish,
   t,
   egp,
 }: {
   c: CourseRow;
   deletingId: string | null;
+  publishingId: string | null;
   confirmDelete: string | null;
   onDelete: (id: string) => void;
+  onTogglePublish: (id: string, nextPublished: boolean) => void;
   t: (k: string, fb?: string) => string;
   egp: string;
 }) {
@@ -80,6 +84,18 @@ function CourseTableRow({
           </Link>
           <button
             type="button"
+            onClick={() => onTogglePublish(c.id, !c.isPublished)}
+            disabled={publishingId !== null || deletingId !== null}
+            className="rounded-[var(--radius-btn)] border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--color-background)] disabled:opacity-50"
+          >
+            {publishingId === c.id
+              ? t(`${L}.publishing`, "Updating…")
+              : c.isPublished
+                ? t(`${L}.unpublish`, "Unpublish")
+                : t(`${L}.publish`, "Publish")}
+          </button>
+          <button
+            type="button"
             onClick={() => onDelete(c.id)}
             disabled={deletingId !== null}
             className={
@@ -108,7 +124,9 @@ export function CoursesManageList({ courses }: { courses: CourseRow[] }) {
   const egp = t("common.egyptianPoundShort");
   const [searchQuery, setSearchQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [publishedOverride, setPublishedOverride] = useState<Record<string, boolean>>({});
 
   const filteredCourses = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -141,6 +159,26 @@ export function CoursesManageList({ courses }: { courses: CourseRow[] }) {
       courses: map.get(key)!.courses,
     }));
   }, [filteredCourses, t]);
+
+  async function handleTogglePublish(id: string, nextPublished: boolean) {
+    setPublishingId(id);
+    try {
+      const res = await fetch(`/api/dashboard/courses/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublished: nextPublished }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? t(`${L}.togglePublishFailed`, "Failed to update publish status"));
+        return;
+      }
+      setPublishedOverride((current) => ({ ...current, [id]: nextPublished }));
+      router.refresh();
+    } finally {
+      setPublishingId(null);
+    }
+  }
 
   async function handleDelete(id: string) {
     if (confirmDelete !== id) {
@@ -227,10 +265,15 @@ export function CoursesManageList({ courses }: { courses: CourseRow[] }) {
                   {sectionCourses.map((c) => (
                     <CourseTableRow
                       key={c.id}
-                      c={c}
+                      c={{
+                        ...c,
+                        isPublished: publishedOverride[c.id] ?? c.isPublished,
+                      }}
                       deletingId={deletingId}
+                      publishingId={publishingId}
                       confirmDelete={confirmDelete}
                       onDelete={handleDelete}
+                      onTogglePublish={handleTogglePublish}
                       t={t}
                       egp={egp}
                     />
