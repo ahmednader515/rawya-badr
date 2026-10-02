@@ -35,13 +35,17 @@ export function VdoCipherPreviewPlayer({ videoId, className = "w-full" }: Props)
         playbackInfo?: string;
         playerId?: string;
         status?: string;
+        pending?: boolean;
         error?: string;
       };
 
-      if (res.status === 409) {
+      if (res.ok && data.pending) {
         setState("processing");
         setError(
-          t("video.processing", "Video is still processing. Please try again in a few minutes."),
+          t(
+            "dashboard.courseForm.videoEncoding",
+            "Video uploaded. It will be playable when encoding finishes.",
+          ),
         );
         return;
       }
@@ -63,6 +67,14 @@ export function VdoCipherPreviewPlayer({ videoId, className = "w-full" }: Props)
   useEffect(() => {
     void loadOtp();
   }, [loadOtp]);
+
+  useEffect(() => {
+    if (state !== "processing") return;
+    const timer = window.setTimeout(() => {
+      void loadOtp();
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [state, loadOtp]);
 
   return (
     <div

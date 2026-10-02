@@ -25,18 +25,22 @@ function CourseTableRow({
   c,
   deletingId,
   publishingId,
+  duplicatingId,
   confirmDelete,
   onDelete,
   onTogglePublish,
+  onDuplicate,
   t,
   egp,
 }: {
   c: CourseRow;
   deletingId: string | null;
   publishingId: string | null;
+  duplicatingId: string | null;
   confirmDelete: string | null;
   onDelete: (id: string) => void;
   onTogglePublish: (id: string, nextPublished: boolean) => void;
+  onDuplicate: (id: string) => void;
   t: (k: string, fb?: string) => string;
   egp: string;
 }) {
@@ -85,7 +89,7 @@ function CourseTableRow({
           <button
             type="button"
             onClick={() => onTogglePublish(c.id, !c.isPublished)}
-            disabled={publishingId !== null || deletingId !== null}
+            disabled={publishingId !== null || deletingId !== null || duplicatingId !== null}
             className="rounded-[var(--radius-btn)] border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--color-background)] disabled:opacity-50"
           >
             {publishingId === c.id
@@ -93,6 +97,16 @@ function CourseTableRow({
               : c.isPublished
                 ? t(`${L}.unpublish`, "Unpublish")
                 : t(`${L}.publish`, "Publish")}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDuplicate(c.id)}
+            disabled={duplicatingId !== null || publishingId !== null || deletingId !== null}
+            className="rounded-[var(--radius-btn)] border border-[var(--color-border)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--color-background)] disabled:opacity-50"
+          >
+            {duplicatingId === c.id
+              ? t(`${L}.duplicating`, "Duplicating…")
+              : t(`${L}.duplicate`, "Duplicate")}
           </button>
           <button
             type="button"
@@ -125,6 +139,7 @@ export function CoursesManageList({ courses }: { courses: CourseRow[] }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [publishedOverride, setPublishedOverride] = useState<Record<string, boolean>>({});
 
@@ -159,6 +174,22 @@ export function CoursesManageList({ courses }: { courses: CourseRow[] }) {
       courses: map.get(key)!.courses,
     }));
   }, [filteredCourses, t]);
+
+  async function handleDuplicate(id: string) {
+    setDuplicatingId(id);
+    try {
+      const res = await fetch(`/api/dashboard/courses/${id}/duplicate`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+      if (!res.ok || !data.id) {
+        alert(data.error ?? t(`${L}.duplicateFailed`, "Failed to duplicate course"));
+        return;
+      }
+      router.push(`/dashboard/courses/${data.id}/edit`);
+      router.refresh();
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
 
   async function handleTogglePublish(id: string, nextPublished: boolean) {
     setPublishingId(id);
@@ -271,9 +302,11 @@ export function CoursesManageList({ courses }: { courses: CourseRow[] }) {
                       }}
                       deletingId={deletingId}
                       publishingId={publishingId}
+                      duplicatingId={duplicatingId}
                       confirmDelete={confirmDelete}
                       onDelete={handleDelete}
                       onTogglePublish={handleTogglePublish}
+                      onDuplicate={handleDuplicate}
                       t={t}
                       egp={egp}
                     />

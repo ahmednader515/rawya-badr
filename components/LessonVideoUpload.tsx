@@ -22,9 +22,6 @@ function formatDuration(seconds: number | null): string {
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
-const STATUS_POLL_MS = 5000;
-const STATUS_POLL_MAX = 120;
-
 type UploadPhase = "idle" | "uploading" | "processing" | "ready" | "error";
 
 type Props = {
@@ -73,26 +70,6 @@ function uploadToVdoCipher(
 
     xhr.send(formData);
   });
-}
-
-async function pollVideoReady(videoId: string): Promise<void> {
-  for (let i = 0; i < STATUS_POLL_MAX; i++) {
-    const res = await fetch(
-      `/api/upload/video/status?videoId=${encodeURIComponent(videoId)}`,
-      { credentials: "include" },
-    );
-    const data = (await res.json()) as { status?: string; error?: string };
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to check video status");
-    }
-    const status = String(data.status ?? "").toLowerCase();
-    if (status === "ready") return;
-    if (status === "failed") {
-      throw new Error("Video processing failed");
-    }
-    await new Promise((r) => setTimeout(r, STATUS_POLL_MS));
-  }
-  throw new Error("Video processing timed out");
 }
 
 export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSaved, disabled }: Props) {
@@ -193,12 +170,9 @@ export function LessonVideoUpload({ videoId, lessonTitle, onVideoId, onVideoSave
 
       await uploadToVdoCipher(file, credData.clientPayload, setProgress);
 
-      setPhase("processing");
-      setProgress(100);
-      await pollVideoReady(credData.videoId);
-
       onVideoId(formatVdoCipherVideoId(credData.videoId));
       setPhase("ready");
+      setProgress(100);
       setLibraryOpen(false);
       onVideoSaved?.();
     } catch (err) {

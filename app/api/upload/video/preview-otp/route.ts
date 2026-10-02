@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { generatePlaybackOtp, getVideoStatus, isVdoCipherConfigured, getVdoCipherPlayerIdForClient } from "@/lib/vdocipher";
 import { normalizeVdoCipherVideoId } from "@/lib/vdocipher-video-id";
 
+export const dynamic = "force-dynamic";
+
 function canUploadVideo(role: string | undefined): boolean {
   return role === "ADMIN" || role === "ASSISTANT_ADMIN" || role === "TEACHER";
 }
@@ -35,14 +37,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const status = await getVideoStatus(videoId);
-    if (status.status !== "ready") {
-      return NextResponse.json(
-        {
-          error: "الفيديو قيد المعالجة",
-          status: status.status,
-        },
-        { status: 409 },
-      );
+    if (String(status.status).toLowerCase() !== "ready") {
+      return NextResponse.json({
+        pending: true,
+        status: status.status,
+        videoId,
+      });
     }
 
     const { otp, playbackInfo } = await generatePlaybackOtp(videoId, { ttl: 300 });

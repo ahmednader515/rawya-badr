@@ -39,10 +39,11 @@ export async function POST() {
       ...getVdoCipherPlayerIdForClient(),
     });
   } catch (e) {
+    const message = e instanceof Error ? e.message : "فشل تحميل حماية DRM";
+    if (/not found/i.test(message)) {
+      return NextResponse.json({ skipped: true });
+    }
     console.error("VdoCipher DRM sentinel OTP error:", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "فشل تحميل حماية DRM" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

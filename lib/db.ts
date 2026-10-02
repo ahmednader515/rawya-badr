@@ -4180,6 +4180,129 @@ export async function getCourseForEdit(courseId: string): Promise<{
   };
 }
 
+function certKindFromValue(value: unknown): "ceu" | "pdu" | null {
+  const v = String(value ?? "").trim().toLowerCase();
+  return v === "ceu" || v === "pdu" ? v : null;
+}
+
+function creditCategoryFromValue(value: unknown): "general" | "ethics" | "supervision" | null {
+  const v = String(value ?? "").trim().toLowerCase();
+  return v === "general" || v === "ethics" || v === "supervision" ? v : null;
+}
+
+/** Copy course settings plus lessons and quizzes. The copy is unpublished and gets a new id and certificate code. */
+export async function duplicateCourse(
+  sourceId: string,
+  createdById: string,
+): Promise<{ id: string }> {
+  const data = await getCourseForEdit(sourceId);
+  if (!data?.course) throw new Error("الدورة غير موجودة");
+
+  const c = data.course;
+  const title = String(c.title ?? "").trim() || "Course";
+  const titleAr = String(c.titleAr ?? c.title_ar ?? "").trim() || title;
+  const slugSource = String(c.slug ?? "course")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  const slug = `${slugSource || "course"}-copy-${Date.now().toString(36)}`;
+
+  const price = Number(c.price ?? 0);
+  const accessRaw = c.accessDays ?? c.access_days;
+  const accessDays =
+    typeof accessRaw === "number" && Number.isFinite(accessRaw) && accessRaw >= 1
+      ? Math.floor(accessRaw)
+      : null;
+  const attemptsRaw = c.maxQuizAttempts ?? c.max_quiz_attempts;
+  const creditRaw = c.creditPoints ?? c.credit_points;
+  const creditPoints = creditRaw != null && Number.isFinite(Number(creditRaw)) ? Number(creditRaw) : null;
+
+  const created = await createCourse({
+    title: `${title} (copy)`,
+    title_ar: `${titleAr} (نسخة)`,
+    slug,
+    description: String(c.description ?? "").trim() || "-",
+    description_en: String(c.descriptionEn ?? c.description_en ?? "").trim() || "-",
+    short_desc: (c.shortDesc ?? c.short_desc ?? null) as string | null,
+    short_desc_en: (c.shortDescEn ?? c.short_desc_en ?? null) as string | null,
+    image_url: (c.imageUrl ?? c.image_url ?? null) as string | null,
+    price: Number.isFinite(price) ? price : 0,
+    is_published: false,
+    created_by_id: createdById,
+    max_quiz_attempts: typeof attemptsRaw === "number" ? attemptsRaw : null,
+    category_id: (c.categoryId ?? c.category_id ?? null) as string | null,
+    accepts_homework: Boolean(c.acceptsHomework ?? c.accepts_homework),
+    access_days: accessDays,
+    cert_kind: certKindFromValue(c.certKind ?? c.cert_kind),
+    credit_points: creditPoints,
+    credit_category: creditCategoryFromValue(c.creditCategory ?? c.credit_category),
+  });
+
+  await updateCourse(created.id, {
+    rating_required: Boolean(c.ratingRequired ?? c.rating_required),
+  });
+
+  for (let i = 0; i < data.lessons.length; i++) {
+    const lesson = data.lessons[i]!;
+    const order = typeof lesson.order === "number" ? lesson.order : i;
+    await createLesson({
+      course_id: created.id,
+      title: String(lesson.title ?? "").trim() || `Lesson ${i + 1}`,
+      title_ar: (lesson.titleAr ?? lesson.title_ar ?? null) as string | null,
+      slug: `${slug}-lesson-${i + 1}`,
+      content: (lesson.content ?? null) as string | null,
+      video_url: (lesson.videoUrl ?? lesson.video_url ?? null) as string | null,
+      pdf_url: (lesson.pdfUrl ?? lesson.pdf_url ?? null) as string | null,
+      order,
+      accepts_homework: Boolean(lesson.acceptsHomework ?? lesson.accepts_homework),
+      homework_image_url: (lesson.homeworkImageUrl ?? lesson.homework_image_url ?? null) as string | null,
+    });
+  }
+
+  for (let qi = 0; qi < data.quizzes.length; qi++) {
+    const quizRow = data.quizzes[qi]!;
+    const order = typeof quizRow.order === "number" ? quizRow.order : data.lessons.length + qi;
+    const minutesRaw = quizRow.timeLimitMinutes ?? quizRow.time_limit_minutes;
+    const minutes = typeof minutesRaw === "number" && minutesRaw >= 1 ? Math.floor(minutesRaw) : null;
+    const quiz = await createQuiz({
+      course_id: created.id,
+      title: String(quizRow.title ?? "").trim() || `Quiz ${qi + 1}`,
+      order,
+      time_limit_minutes: minutes,
+    });
+
+    const questions = quizRow.questions ?? [];
+    for (let qti = 0; qti < questions.length; qti++) {
+      const questionRow = questions[qti]!;
+      const typeRaw = String(questionRow.type ?? "MULTIPLE_CHOICE");
+      const type =
+        typeRaw === "TRUE_FALSE" || typeRaw === "ESSAY" || typeRaw === "MULTIPLE_CHOICE"
+          ? typeRaw
+          : "MULTIPLE_CHOICE";
+      const question = await createQuestion({
+        quiz_id: quiz.id,
+        type,
+        question_text: String(questionRow.questionText ?? questionRow.question_text ?? ""),
+        question_image_url: (questionRow.questionImageUrl ?? questionRow.question_image_url ?? null) as
+          | string
+          | null,
+        order: typeof questionRow.order === "number" ? questionRow.order : qti,
+      });
+      for (const option of questionRow.options ?? []) {
+        await createQuestionOption({
+          question_id: question.id,
+          text: String(option.text ?? ""),
+          is_correct: Boolean(option.isCorrect ?? option.is_correct),
+        });
+      }
+    }
+  }
+
+  return { id: created.id };
+}
+
 /** Latest unpublished course by creator — used to resume draft editing. */
 export async function getLatestDraftCourseForCreator(userId: string): Promise<Record<string, unknown> | null> {
   const rows = await sql`

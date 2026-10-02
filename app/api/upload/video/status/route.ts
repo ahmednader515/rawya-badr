@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getVideoStatus, isVdoCipherConfigured } from "@/lib/vdocipher";
 
+export const dynamic = "force-dynamic";
+
 function canUploadVideo(role: string | undefined): boolean {
   return role === "ADMIN" || role === "ASSISTANT_ADMIN" || role === "TEACHER";
 }

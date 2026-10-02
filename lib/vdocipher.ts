@@ -148,6 +148,7 @@ export async function getUploadCredentials(
   const res = await fetch(`${VDOCIPHER_API_BASE}/videos?${params.toString()}`, {
     method: "PUT",
     headers: authHeaders(),
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -184,15 +185,19 @@ export type VdoCipherVideoList = {
 };
 
 function pickPosterUrl(row: Record<string, unknown>): string | null {
-  const poster = row.poster;
-  if (typeof poster === "string" && poster.trim()) return poster.trim();
-  const posters = row.posters;
-  if (!Array.isArray(posters)) return null;
-  for (const item of posters) {
-    if (!item || typeof item !== "object") continue;
-    const url = (item as { posterUrl?: unknown; url?: unknown }).posterUrl
-      ?? (item as { url?: unknown }).url;
-    if (typeof url === "string" && url.trim()) return url.trim();
+  const candidates = [row.poster];
+  if (Array.isArray(row.posters)) candidates.push(...row.posters);
+  for (const item of candidates) {
+    const url =
+      typeof item === "string"
+        ? item
+        : item && typeof item === "object"
+          ? String((item as { posterUrl?: unknown; url?: unknown }).posterUrl ?? (item as { url?: unknown }).url ?? "")
+          : "";
+    const trimmed = url.trim();
+    if (!/^https?:\/\//i.test(trimmed)) continue;
+    if (/placeholder\.com/i.test(trimmed)) continue;
+    return trimmed;
   }
   return null;
 }
@@ -215,6 +220,7 @@ export async function listVdoCipherVideos(options?: {
   const res = await fetch(`${VDOCIPHER_API_BASE}/videos?${params.toString()}`, {
     method: "GET",
     headers: authHeaders(),
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -256,6 +262,7 @@ export async function getVideoStatus(videoId: string): Promise<VdoCipherVideoDet
   const res = await fetch(`${VDOCIPHER_API_BASE}/videos/${encodeURIComponent(id)}`, {
     method: "GET",
     headers: authHeaders(),
+    cache: "no-store",
   });
 
   if (!res.ok) {
@@ -334,6 +341,7 @@ export async function generatePlaybackOtp(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    cache: "no-store",
   });
 
   if (!res.ok) {
