@@ -3591,30 +3591,27 @@ async function ensureLessonRatingsSchema(): Promise<void> {
   });
 }
 
-function courseRatingSelectSql() {
-  // Pull rating data from the CourseRating table (one rating per student per course).
-  if (!courseRatingSchemaAvailable) {
-    return sql`NULL::numeric AS course_rating, 0::int AS course_rating_count`;
-  }
-  // Use to_regclass to safely skip the subquery if the table doesn't exist yet
-  return sql`
-    CASE WHEN to_regclass('"CourseRating"') IS NOT NULL THEN (
-      SELECT ROUND(AVG(cr.stars)::numeric, 2)
-      FROM "CourseRating" cr
-      WHERE cr.course_id = c.id
-    ) END AS course_rating,
-    CASE WHEN to_regclass('"CourseRating"') IS NOT NULL THEN (
-      SELECT COUNT(*)::int
-      FROM "CourseRating" cr
-      WHERE cr.course_id = c.id
-    ) ELSE 0 END AS course_rating_count
-  `;
+/** Add only the trusted ratings projection to SQL; keep all values parameterized.
+ * Neon 0.10 does not compose nested sql templates: it serializes them as values.
+ */
+function sqlWithCourseRatings(strings: TemplateStringsArray, ...values: unknown[]) {
+  const projection = courseRatingSchemaAvailable
+    ? `
+      (SELECT ROUND(AVG(cr.stars)::numeric, 2)
+       FROM "CourseRating" cr WHERE cr.course_id = c.id) AS course_rating,
+      (SELECT COUNT(*)::int
+       FROM "CourseRating" cr WHERE cr.course_id = c.id) AS course_rating_count
+    `
+    : "NULL::numeric AS course_rating, 0::int AS course_rating_count";
+  const parts = strings.map((part) => part.replace("/* course-ratings */", projection));
+  const template = Object.assign(parts, { raw: parts });
+  return sql(template, ...values);
 }
 
 export async function getCourseBySlug(slug: string): Promise<(Course & { category?: Category }) | null> {
   await ensureCourseRatingSchema();
-  const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, /* course-ratings */, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
     LEFT JOIN "Category" cat ON c.category_id = cat.id
     WHERE c.slug = ${slug} AND c.is_published = true
@@ -3632,8 +3629,8 @@ export async function getCourseBySlug(slug: string): Promise<(Course & { categor
 
 export async function getCourseById(id: string): Promise<Course | null> {
   await ensureCourseRatingSchema();
-  const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, /* course-ratings */
     FROM "Course" c
     WHERE c.id = ${id}
     LIMIT 1
@@ -3646,8 +3643,8 @@ export async function getCourseBySlugOrId(slugOrId: string): Promise<Course | nu
     return getCourseById(slugOrId);
   }
   await ensureCourseRatingSchema();
-  const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, /* course-ratings */
     FROM "Course" c
     WHERE c.slug = ${slugOrId} AND c.is_published = true
     LIMIT 1
@@ -3657,8 +3654,8 @@ export async function getCourseBySlugOrId(slugOrId: string): Promise<Course | nu
 
 async function fetchCoursesPublishedWithCategory(): Promise<(Course & { category?: Category })[]> {
   await ensureCourseRatingSchema();
-  const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, /* course-ratings */, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
     LEFT JOIN "Category" cat ON c.category_id = cat.id
     WHERE c.is_published = true
@@ -3676,8 +3673,8 @@ async function fetchCoursesPublishedWithCategory(): Promise<(Course & { category
 
 async function fetchCoursesPublishedPlain(): Promise<(Course & { category?: Category })[]> {
   await ensureCourseRatingSchema();
-  const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, /* course-ratings */
     FROM "Course" c
     WHERE c.is_published = true
     ORDER BY c."order" ASC, c.created_at DESC
@@ -3687,13 +3684,13 @@ async function fetchCoursesPublishedPlain(): Promise<(Course & { category?: Cate
 
 const getCoursesPublishedWithCategoryCached = unstable_cache(
   fetchCoursesPublishedWithCategory,
-  ["courses-published-with-cat-v2"],
+  ["courses-published-with-cat-v3"],
   { revalidate: 60, tags: [HOMEPAGE_CONTENT_TAG] },
 );
 
 const getCoursesPublishedPlainCached = unstable_cache(
   fetchCoursesPublishedPlain,
-  ["courses-published-plain-v2"],
+  ["courses-published-plain-v3"],
   { revalidate: 60, tags: [HOMEPAGE_CONTENT_TAG] },
 );
 
@@ -3732,9 +3729,9 @@ export async function getCoursesWithCounts(): Promise<
 > {
   await ensureCourseRatingSchema();
   await ensureCourseAccessDaysColumn();
-  const rows = await sql`
+  const rows = await sqlWithCourseRatings`
     SELECT c.*,
-      ${courseRatingSelectSql()},
+      /* course-ratings */,
       (SELECT COUNT(*)::int FROM "Lesson" WHERE course_id = c.id) as lessons_count,
       (SELECT COUNT(*)::int FROM "Enrollment" WHERE course_id = c.id) as enrollments_count,
       cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug, cat."order" as cat_order
@@ -3777,9 +3774,9 @@ export async function getCoursesWithCountsForCreator(
 > {
   await ensureCourseRatingSchema();
   await ensureCourseAccessDaysColumn();
-  const rows = await sql`
+  const rows = await sqlWithCourseRatings`
     SELECT c.*,
-      ${courseRatingSelectSql()},
+      /* course-ratings */,
       (SELECT COUNT(*)::int FROM "Lesson" WHERE course_id = c.id) as lessons_count,
       (SELECT COUNT(*)::int FROM "Enrollment" WHERE course_id = c.id) as enrollments_count,
       cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug, cat."order" as cat_order
@@ -3811,8 +3808,8 @@ export async function getCoursesWithCountsForCreator(
 
 export async function getCoursesAll(): Promise<(Course & { category?: Category })[]> {
   await ensureCourseRatingSchema();
-  const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, /* course-ratings */, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
     LEFT JOIN "Category" cat ON c.category_id = cat.id
     ORDER BY c."order" ASC, c.created_at DESC
@@ -4792,8 +4789,8 @@ export async function hasPartialCourseAccess(userId: string, courseId: string): 
 export async function getAccessibleCoursesForUser(userId: string): Promise<(Course & { category?: Category })[]> {
   await ensurePlatformSubscriptionSchema();
   await ensureCourseRatingSchema();
-  const rows = await sql`
-    SELECT c.*, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, /* course-ratings */, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Course" c
     LEFT JOIN "Category" cat ON c.category_id = cat.id
     WHERE c.id IN (
@@ -5199,6 +5196,7 @@ export async function deleteCourseRating(ratingId: string): Promise<void> {
   await ensureCourseRatingSchema();
   if (!courseRatingSchemaAvailable) return;
   await sql`DELETE FROM "CourseRating" WHERE id = ${ratingId}`;
+  revalidateHomepageCaches();
 }
 
 export async function getCourseRatingSummary(courseId: string): Promise<{
@@ -6073,8 +6071,8 @@ export async function getEnrollmentsWithCourseByUserId(userId: string): Promise<
 export async function getEnrolledCoursesForUser(userId: string): Promise<(Course & { category?: Category })[]> {
   await ensureCourseRatingSchema();
   await ensureCourseAccessDaysColumn();
-  const rows = await sql`
-    SELECT c.*, e.enrolled_at as enrollment_enrolled_at, ${courseRatingSelectSql()}, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
+  const rows = await sqlWithCourseRatings`
+    SELECT c.*, e.enrolled_at as enrollment_enrolled_at, /* course-ratings */, cat.id as cat_id, cat.name as cat_name, cat.name_ar as cat_name_ar, cat.slug as cat_slug
     FROM "Enrollment" e
     JOIN "Course" c ON c.id = e.course_id
     LEFT JOIN "Category" cat ON c.category_id = cat.id
